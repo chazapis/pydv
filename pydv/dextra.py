@@ -17,7 +17,57 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
+import random
+
+from dstar import DSTARHeader
 from udp import UDPSocket
+
+class DExtraHeader(DSTARHeader):
+    def __init__(self,
+                 my_call_1='',
+                 my_call_2='',
+                 your_call='',
+                 rpt_call_1='',
+                 rpt_call_2='',
+                 flag_1=0,
+                 flag_2=0,
+                 flag_3=0,
+                 band_1=0,
+                 band_2=0,
+                 band_3=0,
+                 unique_id=None):
+        super(DExtraHeader, self).__init__(my_call_1,
+                                           my_call_2,
+                                           your_call,
+                                           rpt_call_1,
+                                           rpt_call_2,
+                                           flag_1,
+                                           flag_2,
+                                           flag_3)
+        self.band_1 = band_1
+        self.band_2 = band_2
+        self.band_3 = band_3
+        self.unique_id = unique_id if unique_id is not None else random.randint(1, 0xffff)
+
+    def load(data, check=True):
+        assert(len(data) >= 56)
+
+        (self.band_1,
+         self.band_2,
+         self.band_3,
+         self.unique_id) = struct.unpack('9xBBB<Hx', data[:15])
+        super(DExtraHeader, self).load(data[15:], check)
+
+    def dump(check=True):
+        data = 'DSVT\x10\x00\x00\x00\x20'
+        data += struct.pack('BBB<H', self.band_1,
+                                     self.band_2,
+                                     self.band_3,
+                                     self.unique_id)
+        data += '\x80'
+        data += super(DExtraHeader, self).dump(check)
+
+        return data
 
 class DExtraConnection(object):
     def __init__(self, address, port, callsign):

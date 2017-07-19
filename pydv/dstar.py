@@ -26,6 +26,20 @@ RADIO_HEADER_LENGTH_BYTES = 41
 LONG_CALLSIGN_LENGTH  = 8
 SHORT_CALLSIGN_LENGTH = 4
 
+DATA_MASK           = 0x80
+REPEATER_MASK       = 0x40
+INTERRUPTED_MASK    = 0x20
+CONTROL_SIGNAL_MASK = 0x10
+URGENT_MASK         = 0x08
+
+REPEATER_CONTROL_MASK = 0x07
+REPEATER_CONTROL      = 0x07
+AUTO_REPLY            = 0x06
+RESEND_REQUESTED      = 0x04
+ACK_FLAG              = 0x03
+NO_RESPONSE           = 0x02
+RELAY_UNAVAILABLE     = 0x01
+
 class DSTARHeader(object):
     def __init__(self,
                  my_call_1='',
@@ -49,7 +63,7 @@ class DSTARHeader(object):
                                                          sc=SHORT_CALLSIGN_LENGTH)
 
     def load(data, check=True):
-        assert(len(data) >= (RADIO_HEADER_LENGTH_BYTES - (0 if check else 2))
+        assert(len(data) >= RADIO_HEADER_LENGTH_BYTES - (0 if check else 2))
 
         (self.flag_1,
          self.flag_2,
@@ -63,7 +77,7 @@ class DSTARHeader(object):
         if check:
             cksum = CCITTChecksum()
             cksum.update(data[:RADIO_HEADER_LENGTH_BYTES - 2])
-            if not cksum.check(data[RADIO_HEADER_LENGTH_BYTES - 2:RADIO_HEADER_LENGTH_BYTES])
+            if not cksum.check(data[RADIO_HEADER_LENGTH_BYTES - 2:RADIO_HEADER_LENGTH_BYTES]):
                 raise ValueError
 
     def dump(check=True):
@@ -80,5 +94,73 @@ class DSTARHeader(object):
             cksum = CCITTChecksum()
             cksum.update(data)
             data += cksum.result()
+        else:
+            data += '\xff\xff'
 
         return data
+
+    @property
+    def is_repeater_mode(self):
+        return (self.flag_1 & REPEATER_MASK) == REPEATER_MASK
+
+    @is_repeater_mode.setter
+    def is_repeater_mode(self, value):
+        if value:
+            self.flag_1 |= REPEATER_MASK
+        else:
+            self.flag_1 &= ~REPEATER_MASK
+            self.rpt_call_1 = 'DIRECT  '
+            self.rpt_call_2 = 'DIRECT  '
+
+    @property
+    def is_data_packet(self):
+        return (self.flag_1 & DATA_MASK) == DATA_MASK
+
+    @is_data_packet.setter
+    def is_data_packet(self, value):
+        if value:
+            self.flag_1 |= DATA_MASK
+        else:
+            self.flag_1 &= ~DATA_MASK
+
+    @property
+    def is_interrupted(self):
+        return (self.flag_1 & INTERRUPTED_MASK) == INTERRUPTED_MASK;
+
+    @is_interrupted.setter
+    def is_interrupted(self, value):
+        if value:
+            self.flag_1 |= INTERRUPTED_MASK
+        else:
+            self.flag_1 &= ~INTERRUPTED_MASK
+
+    @property
+    def is_control_signal(self):
+        return (self.flag_1 & CONTROL_SIGNAL_MASK) == CONTROL_SIGNAL_MASK;
+
+    @is_control_signal.setter
+    def is_control_signal(self, value):
+        if value:
+            self.flag_1 |= CONTROL_SIGNAL_MASK
+        else:
+            self.flag_1 &= ~CONTROL_SIGNAL_MASK
+
+    @property
+    def is_urgent(self):
+        return (self.flag_1 & URGENT_MASK) == URGENT_MASK;
+
+    @is_urgent.setter
+    def is_urgent(self, value):
+        if value:
+            self.flag_1 |= URGENT_MASK
+        else:
+            self.flag_1 &= ~URGENT_MASK
+
+    @property
+    def repeater_flags(self):
+        return self.flag_1 & REPEATER_CONTROL_MASK;
+
+    @repeater_flags.setter
+    def repeater_flags(self, value):
+        self.flag_1 &= ~REPEATER_CONTROL_MASK
+        self.flag_1 |= value & REPEATER_CONTROL_MASK
