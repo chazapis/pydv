@@ -1,3 +1,3 @@
 # pydv
 
-Collection of D-STAR-related code in Python. Based on [OpenDV](https://github.com/dl5di/OpenDV).
+Collection of D-STAR-related code in Python. Based on [ircDDBGateway](https://github.com/g4klx/ircDDBGateway) and [xlxd](https://github.com/LX3JL/xlxd).
