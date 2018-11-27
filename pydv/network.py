@@ -18,43 +18,49 @@ import socket
 import select
 import logging
 
-class UDPSocket(object):
-    def __init__(self, remote_address, remote_port, local_port=0):
-        assert(remote_address)
-        assert(remote_port > 0)
+from collections import namedtuple
+
+NetworkAddress = namedtuple('NetworkAddress', ['host', 'port'])
+
+class UDPClientSocket(object):
+    def __init__(self, remote_address, local_address=None):
+        assert(isinstance(remote_address, NetworkAddress))
+        assert(remote_address.port > 0)
+        if local_address is not None:
+            assert(isinstance(local_address, NetworkAddress))
+        else:
+            local_address = NetworkAddress('0.0.0.0', 0)
 
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.debug('initialized with remote (\'%s\', %d) local (\'0.0.0.0\', %d)', remote_address, remote_port, local_port)
+        self.logger.debug('initialized with remote %s local %s', remote_address, local_address)
 
-        self.remote_address = self.lookup(remote_address)
-        if not self.remote_address:
-            self.logger.error('cannot find address for host %s', remote_address)
-            raise ValueError
-        self.remote_port = remote_port
-        self.local_port = local_port
+        try:
+            self.remote_address = NetworkAddress(self._resolve(remote_address.host), remote_address.port)
+        except:
+            self.logger.error('cannot find address for host %s', remote_address.host)
+            raise
+        self.local_address = local_address
 
         self.sock = None
 
-    def lookup(self, hostname):
+    def _resolve(self, host):
         try:
-            socket.inet_aton(hostname)
-            return hostname
+            socket.inet_aton(host)
+            return host
         except socket.error:
             pass
 
         try:
-            return socket.gethostbyname(hostname)
+            return socket.gethostbyname(host)
         except:
-            pass
-
-        return None
+            raise ValueError
 
     def open(self):
         assert(self.sock is None)
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(('0.0.0.0', self.local_port))
+        self.sock.bind(self.local_address)
         self.logger.debug('socket opened')
 
     def close(self):
@@ -84,7 +90,7 @@ class UDPSocket(object):
         self.logger.debug('read %d bytes from %s: %s', len(data), address, data)
 
         # Check if the data is for us, only check the IP address now (used to include port number too)
-        if self.remote_address != address[0]:
+        if self.remote_address.host != address[0]:
             return None;
 
         return data
@@ -92,8 +98,8 @@ class UDPSocket(object):
     def write(self, data):
         assert(self.sock)
 
-        self.logger.debug('write %d bytes to %s: %s', len(data), (self.remote_address, self.remote_port), data)
-        length = self.sock.sendto(data, (self.remote_address, self.remote_port))
+        self.logger.debug('write %d bytes to %s: %s', len(data), self.remote_address, data)
+        length = self.sock.sendto(data, self.remote_address)
         self.logger.debug('written %d bytes', length)
 
         if length != len(data):
@@ -105,19 +111,18 @@ if __name__ == '__main__':
 
     from time import sleep
 
-    logging.basicConfig(format='%(asctime)s %(levelname)7s %(name)s: %(message)s',
+    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.DEBUG)
-
 
     def server():
         logger = logging.getLogger('server')
     
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        server = ('0.0.0.0', 20000)
-        sock.bind(server)
-        logger.debug('server listening at %s', server)
+        server_address = NetworkAddress('0.0.0.0', 20000)
+        sock.bind(server_address)
+        logger.debug('server listening at %s', server_address)
 
         while True:
             data, address = sock.recvfrom(256)
@@ -128,7 +133,7 @@ if __name__ == '__main__':
     def client():
         sleep(1)
         data = 'test'
-        with UDPSocket('127.0.0.1', 20000, 20001) as udp_socket:
+        with UDPClientSocket(NetworkAddress('127.0.0.1', 20000)) as udp_socket:
             udp_socket.write(data)
             while True:
                 if udp_socket.read(256) == data:

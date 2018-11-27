@@ -17,7 +17,7 @@
 import random
 
 from dstar import DSTARHeader
-from udp import UDPSocket
+from network import NetworkAddress, UDPClientSocket
 
 class DExtraHeader(DSTARHeader):
     def __init__(self,
@@ -81,7 +81,7 @@ class DExtraConnection(object):
         assert(self.sock is None)
 
         try:
-            self.sock = UDPSocket(address, port)
+            self.sock = UDPClientSocket(address, port)
             self.sock.open()
         except Exception as e:
             self.logger.error('can not open UDP socket: %s', str(e))
