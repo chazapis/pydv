@@ -20,43 +20,32 @@ import logging
 
 from collections import namedtuple
 
-NetworkAddress = namedtuple('NetworkAddress', ['host', 'port'])
+from utils import or_valueerror, resolve
+
+_NetworkAddress = namedtuple('NetworkAddress', ['host', 'port'])
+class NetworkAddress(_NetworkAddress):
+    def __str__(self):
+        return '%s:%s' % (self.host, self.port)
 
 class UDPClientSocket(object):
     def __init__(self, remote_address, local_address=None):
-        assert(isinstance(remote_address, NetworkAddress))
-        assert(remote_address.port > 0)
-        if local_address is not None:
-            assert(isinstance(local_address, NetworkAddress))
-        else:
+        if local_address is None:
             local_address = NetworkAddress('0.0.0.0', 0)
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.debug('initialized with remote %s local %s', remote_address, local_address)
 
         try:
-            self.remote_address = NetworkAddress(self._resolve(remote_address.host), remote_address.port)
-        except:
+            self.remote_address = NetworkAddress(resolve(remote_address.host), remote_address.port)
+        except ValueError:
             self.logger.error('cannot find address for host %s', remote_address.host)
             raise
         self.local_address = local_address
 
         self.sock = None
 
-    def _resolve(self, host):
-        try:
-            socket.inet_aton(host)
-            return host
-        except socket.error:
-            pass
-
-        try:
-            return socket.gethostbyname(host)
-        except:
-            raise ValueError
-
     def open(self):
-        assert(self.sock is None)
+        or_valueerror(self.sock is None)
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -64,11 +53,9 @@ class UDPClientSocket(object):
         self.logger.debug('socket opened')
 
     def close(self):
-        assert(self.sock)
-
-        if self.sock:
+        if self.sock is not None:
             self.sock.close()
-        self.sock = None
+            self.sock = None
         self.logger.debug('socket closed')
 
     def __enter__(self):
@@ -79,7 +66,7 @@ class UDPClientSocket(object):
         self.close()
 
     def read(self, length):
-        assert(self.sock)
+        or_valueerror(self.sock)
 
         # Check that the recvfrom() won't block
         readable, writable, exceptional = select.select([self.sock], [], [], 0) # Return immediately
@@ -96,7 +83,7 @@ class UDPClientSocket(object):
         return data
 
     def write(self, data):
-        assert(self.sock)
+        or_valueerror(self.sock)
 
         self.logger.debug('write %d bytes to %s: %s', len(data), self.remote_address, data)
         length = self.sock.sendto(data, self.remote_address)

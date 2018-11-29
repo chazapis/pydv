@@ -15,8 +15,10 @@
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 import struct
+import string
 
 from crc import CCITTChecksum
+from utils import or_valueerror
 
 RADIO_HEADER_LENGTH_BYTES = 41
 
@@ -36,6 +38,9 @@ RESEND_REQUESTED      = 0x04
 ACK_FLAG              = 0x03
 NO_RESPONSE           = 0x02
 RELAY_UNAVAILABLE     = 0x01
+
+def pad_callsign(self, callsign, size):
+    return (callsign + (size * ' '))[:size]
 
 class DSTARHeader(object):
     def __init__(self,
@@ -60,7 +65,7 @@ class DSTARHeader(object):
                                                          sc=SHORT_CALLSIGN_LENGTH)
 
     def load(data, check=True):
-        assert(len(data) >= RADIO_HEADER_LENGTH_BYTES - (0 if check else 2))
+        or_valueerror(len(data) >= RADIO_HEADER_LENGTH_BYTES - (0 if check else 2))
 
         (self.flag_1,
          self.flag_2,
@@ -81,11 +86,11 @@ class DSTARHeader(object):
         data = struct.pack(self.fmt, self.flag_1,
                                      self.flag_2,
                                      self.flag_3,
-                                     self.rpt_call_2,
-                                     self.rpt_call_1,
-                                     self.your_call,
-                                     self.my_call_1,
-                                     self.my_call_2)
+                                     pad_callsign(self.rpt_call_2, LONG_CALLSIGN_LENGTH),
+                                     pad_callsign(self.rpt_call_1, LONG_CALLSIGN_LENGTH),
+                                     pad_callsign(self.your_call, LONG_CALLSIGN_LENGTH),
+                                     pad_callsign(self.my_call_1, LONG_CALLSIGN_LENGTH),
+                                     pad_callsign(self.my_call_2, SHORT_CALLSIGN_LENGTH))
 
         if check:
             cksum = CCITTChecksum()
@@ -161,3 +166,29 @@ class DSTARHeader(object):
     def repeater_flags(self, value):
         self.flag_1 &= ~REPEATER_CONTROL_MASK
         self.flag_1 |= value & REPEATER_CONTROL_MASK
+
+class DSTARCallsign(object):
+    __slots__ = ['callsign']
+
+    def __init__(self, callsign):
+        or_valueerror(len(callsign) > 3)
+        or_valueerror(set(callsign[:3]).issubset(string.ascii_letters + string.digits))
+        or_valueerror(not callsign[:3].isdigit())
+        or_valueerror(set(callsign[3:]).issubset(string.ascii_letters + string.digits + ' '))
+
+        self.callsign = callsign.upper()
+
+    def __str__(self):
+        return '{: <8}'.format(self.callsign)
+
+class DSTARModule(object):
+    __slots__ = ['module']
+
+    def __init__(self, module):
+        or_valueerror(len(module) == 1)
+        or_valueerror(set(module).issubset(string.ascii_letters + ' '))
+
+        self.module = module.upper()
+
+    def __str__(self):
+        return self.module
