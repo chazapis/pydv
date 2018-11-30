@@ -65,7 +65,7 @@ class UDPClientSocket(object):
     def __exit__(self, type, value, traceback):
         self.close()
 
-    def read(self, length):
+    def read(self, length=1024):
         or_valueerror(self.sock)
 
         # Check that the recvfrom() won't block
@@ -74,7 +74,7 @@ class UDPClientSocket(object):
             return None
 
         data, address = self.sock.recvfrom(length)
-        self.logger.debug('read %d bytes from %s: %s', len(data), address, data)
+        self.logger.debug('read %d bytes from %s: %s', len(data), address, repr(data))
 
         # Check if the data is for us, only check the IP address now (used to include port number too)
         if self.remote_address.host != address[0]:
@@ -85,7 +85,7 @@ class UDPClientSocket(object):
     def write(self, data):
         or_valueerror(self.sock)
 
-        self.logger.debug('write %d bytes to %s: %s', len(data), self.remote_address, data)
+        self.logger.debug('write %d bytes to %s: %s', len(data), self.remote_address, repr(data))
         length = self.sock.sendto(data, self.remote_address)
         self.logger.debug('written %d bytes', length)
 

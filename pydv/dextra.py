@@ -18,10 +18,11 @@ import logging
 import struct
 
 from time import sleep
+from Queue import Queue
 
 from dstar import DSTARCallsign, DSTARModule
 from network import NetworkAddress, UDPClientSocket
-from utils import or_valueerror
+from utils import or_valueerror, StoppableThread
 
 DEXTRA_PORT = 30001
 
@@ -54,7 +55,7 @@ class DExtraConnectPacket(Packet):
         return cls(src_callsign, src_module, dest_module, revision)
 
     def to_data(self):
-        return struct.pack('9sccB', str(self.src_callsign),
+        return struct.pack('8sccB', str(self.src_callsign),
                                     str(self.src_module),
                                     str(self.dest_module),
                                     11 if self.revision == 1 else 0) # XXX What about revisions 0 and 2?
@@ -73,13 +74,13 @@ class DExtraConnectAckPacket(Packet):
         if (len(data) == 11):
             raise NotImplemented
 
-        or_valueerror(len(data) == 13)
-        src_callsign, src_module, dest_module, ack = struct.unpack('8scc3s', data)
+        or_valueerror(len(data) == 14)
+        src_callsign, src_module, dest_module, ack = struct.unpack('8scc4s', data)
         src_callsign = DSTARCallsign(src_callsign)
         src_module = DSTARModule(src_module)
         dest_module = DSTARModule(dest_module)
         or_valueerror(str(dest_module) != ' ')
-        or_valueerror(ack == 'ACK')
+        or_valueerror(ack == 'ACK\x00')
         return cls(src_callsign, src_module, dest_module, 1) # XXX Could it be revision 0?
 
     @classmethod
@@ -96,10 +97,10 @@ class DExtraConnectAckPacket(Packet):
                                         str(self.src_module),
                                         0)
 
-        return struct.pack('8scc3s', str(self.src_callsign),
+        return struct.pack('8scc4s', str(self.src_callsign),
                                      str(self.src_module),
                                      str(self.dest_module),
-                                     'ACK')
+                                     'ACK\x00')
 
 class DExtraConnectNackPacket(Packet):
     __slots__ = ['src_callsign', 'src_module', 'dest_module']
@@ -111,13 +112,13 @@ class DExtraConnectNackPacket(Packet):
 
     @classmethod
     def from_data(cls, data):
-        or_valueerror(len(data) == 13)
-        src_callsign, src_module, dest_module, nack = struct.unpack('8scc3s', data)
+        or_valueerror(len(data) == 14)
+        src_callsign, src_module, dest_module, nack = struct.unpack('8scc4s', data)
         src_callsign = DSTARCallsign(src_callsign)
         src_module = DSTARModule(src_module)
         dest_module = DSTARModule(dest_module)
         or_valueerror(str(dest_module) != ' ')
-        or_valueerror(nack == 'NAK')
+        or_valueerror(nack == 'NAK\x00')
         return cls(src_callsign, src_module, dest_module)
 
     @classmethod
@@ -127,10 +128,10 @@ class DExtraConnectNackPacket(Packet):
                    connect_packet.dest_module)
 
     def to_data(self):
-        return struct.pack('8scc3s', str(self.src_callsign),
+        return struct.pack('8scc4s', str(self.src_callsign),
                                      str(self.src_module),
                                      str(self.dest_module),
-                                     'ACK')
+                                     'NAK\x00')
 
 class DExtraDisconnectPacket(Packet):
     __slots__ = ['src_callsign', 'src_module']
@@ -178,7 +179,7 @@ class DExtraKeepAlivePacket(Packet):
         return cls(src_callsign) # XXX Get module?
 
     def to_data(self):
-        return str(self.src_callsign)
+        return str(self.src_callsign) + '\x00' # XXX Send module?
 
 class DExtraDVHeaderPacket(Packet):
     __slots__ = ['stream_id', 'dstar_header']
@@ -193,7 +194,7 @@ class DExtraDVHeaderPacket(Packet):
         or_valueerror(data[:4] == 'DSVT')
         or_valueerror(data[4] == '\x10')
         or_valueerror(data[8] == '\x20')
-        stream_id = struct.unpack('<H', data[12:14])
+        stream_id, = struct.unpack('<H', data[12:14])
         return cls(stream_id, data[15:])
 
     def to_data(self):
@@ -229,9 +230,63 @@ class DExtraDVFramePacket(Packet):
                 struct.pack('<HB', self.stream_id, self.packet_id % 21) +
                 self.dstar_frame)
 
-class DExtraConnection(object):
-    __slots__ = ['logger', 'callsign', 'reflector_callsign', 'reflector_module', 'reflector_address', 'sock']
+class DExtraReceiveThread(StoppableThread):
+    def __init__(self, callsign, sock, name='DExtraReceiveThread'):
+        self.logger = logging.getLogger(self.__class__.__name__)
 
+        StoppableThread.__init__(self, name=name)
+        self._sleep_period = 0.01
+
+        self.callsign = callsign
+        self.sock = sock
+        self.queue = Queue()
+
+    def loop(self):
+        while True: # While there is data to read from the socket
+            data = self.sock.read()
+            if not data:
+                return
+
+            try:
+                packet = DExtraDVFramePacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                self.logger.debug('received dvframe packet from stream %s', packet.stream_id)
+                self.queue.put(packet)
+                continue
+
+            try:
+                packet = DExtraDVHeaderPacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                self.logger.debug('received dvheader packet from stream %s', packet.stream_id)
+                self.queue.put(packet)
+                continue
+
+            try:
+                packet = DExtraDisconnectPacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                self.logger.debug('received disconnect packet from %s', packet.src_callsign)
+                self.queue.put(packet)
+                continue
+
+            try:
+                packet = DExtraKeepAlivePacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                # self.logger.debug('received keepalive packet from %s', packet.src_callsign)
+                keepalive_packet = DExtraKeepAlivePacket(self.callsign)
+                self.sock.write(keepalive_packet.to_data())
+                continue
+
+            self.logger.warning('unknown data received')
+
+class DExtraConnection(object):
     def __init__(self, callsign, reflector_callsign, reflector_module, reflector_address):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.debug('initialized with callsign %s reflector callsign %s reflector_module %s reflector_address %s', callsign, reflector_callsign, reflector_module, reflector_address)
@@ -242,6 +297,21 @@ class DExtraConnection(object):
         self.reflector_address = reflector_address
 
         self.sock = None
+        self.receive_thread = None
+
+    def _receive_data(self, timeout=3):
+        elapsed = 0
+        step = 0.01
+        while elapsed < timeout:
+            data = self.sock.read()
+            if not data:
+                sleep(step)
+                elapsed += step
+                continue
+
+            return data
+        else:
+            raise IOError
 
     def open(self):
         or_valueerror(self.sock is None)
@@ -255,9 +325,32 @@ class DExtraConnection(object):
             return False
         self.logger.info('connected to reflector %s at address %s', self.reflector_callsign, self.reflector_address)
 
-        # XXX Set up timeout timer...
+        connect_packet = DExtraConnectPacket(self.callsign, DSTARModule(' '), self.reflector_module, 1)
+        self.sock.write(connect_packet.to_data())
 
-        return True
+        try:
+            data = self._receive_data()
+        except IOError:
+            self.logger.error('connect request timed out')
+            return False
+
+        try:
+            _ = DExtraConnectAckPacket.from_data(data)
+        except ValueError:
+            pass
+        else:
+            self.receive_thread = DExtraReceiveThread(self.callsign, self.sock)
+            self.receive_thread.start()
+            return True
+
+        try:
+            _ = DExtraConnectNackPacket.from_data(data)
+        except ValueError:
+            self.logger.error('unrecognized response to connect request')
+            return False
+        else:
+            self.logger.warning('reflector rejected your connect request')
+            return False
 
     def close(self):
         if self.sock:
@@ -266,19 +359,14 @@ class DExtraConnection(object):
 
     def __enter__(self):
         if not self.open():
-            raise Exception('can not open DExtra connection to %s' % self.reflector_address)
+            raise Exception('can not open DExtra connection to %s' % (self.reflector_address,))
         return self
 
     def __exit__(self, type, value, traceback):
         self.close()
 
-    def receive():
-        while True:
-            data = self.sock.read(BUFFER_LENGTH)
-            if not data:
-                sleep(0.1)
-
-            self.logger.debug('received data from reflector %s length %s', repr(data), len(data))
+    def read(self, block=True, timeout=None):
+        return self.receive_thread.queue.get(block, timeout)
 
 def dextra_recorder():
     import sys
@@ -292,7 +380,7 @@ def dextra_recorder():
     parser.add_argument('address', help='reflector\'s hostname or IP address')
     args = parser.parse_args()
 
-    logging.basicConfig(format='%(asctime)s %(levelname)7s %(name)s: %(message)s',
+    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.DEBUG if args.verbose else logging.INFO)
 
@@ -305,9 +393,12 @@ def dextra_recorder():
         print parser.print_help()
         sys.exit(1)
 
-    with DExtraConnection(callsign, reflector_callsign, reflector_module, reflector_address) as conn:
-        sleep(1)
+    try:
+        with DExtraConnection(callsign, reflector_callsign, reflector_module, reflector_address) as conn:
+            packet = conn.read()
+    except Exception as e:
+        print str(e)
+        sys.exit(1)
 
 if __name__ == '__main__':
     dextra_recorder()
-

@@ -34,3 +34,26 @@ def resolve(host):
         return socket.gethostbyname(host)
     except:
         raise ValueError
+
+# Based on: https://www.oreilly.com/library/view/python-cookbook/0596001673/ch06s03.html
+
+import threading
+
+class StoppableThread(threading.Thread):
+    def __init__(self, name='StoppableThread'):
+        self._stop_event = threading.Event()
+        self._sleep_period = 1.0
+
+        threading.Thread.__init__(self, name=name)
+
+    def loop(self):
+        raise NotImplemented
+
+    def run(self):
+        while not self._stop_event.isSet():
+            self.loop()
+            self._stop_event.wait(self._sleep_period)
+
+    def join(self, timeout=None):
+        self._stop_event.set()
+        threading.Thread.join(self, timeout)
