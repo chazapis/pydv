@@ -16,9 +16,8 @@
 
 import logging
 import struct
-
-from time import sleep
-from Queue import Queue
+import time
+import Queue
 
 from dstar import DSTARCallsign, DSTARModule
 from network import NetworkAddress, UDPClientSocket
@@ -138,7 +137,7 @@ class DExtraDisconnectPacket(Packet):
 
     def __init__(self, src_callsign, src_module):
         self.src_callsign = src_callsign
-        self.src_callsign = src_module
+        self.src_module = src_module
 
     @classmethod
     def from_data(cls, data):
@@ -221,7 +220,7 @@ class DExtraDVFramePacket(Packet):
         or_valueerror(data[4] == '\x20')
         or_valueerror(data[8] == '\x20')
         stream_id, packet_id = struct.unpack('<HB', data[12:15])
-        is_last = (data[14] & 64 != 0)
+        is_last = (packet_id & 64 != 0)
         return cls(stream_id, packet_id, is_last, data[15:])
 
     def to_data(self):
@@ -239,7 +238,7 @@ class DExtraReceiveThread(StoppableThread):
 
         self.callsign = callsign
         self.sock = sock
-        self.queue = Queue()
+        self.queue = Queue.Queue()
 
     def loop(self):
         while True: # While there is data to read from the socket
@@ -252,7 +251,7 @@ class DExtraReceiveThread(StoppableThread):
             except ValueError:
                 pass
             else:
-                self.logger.debug('received dvframe packet from stream %s', packet.stream_id)
+                self.logger.debug('received dvframe packet from stream %s%s', packet.stream_id, ' (last)' if packet.is_last else '')
                 self.queue.put(packet)
                 continue
 
@@ -266,11 +265,38 @@ class DExtraReceiveThread(StoppableThread):
                 continue
 
             try:
+                packet = DExtraConnectAckPacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                self.logger.debug('received connect ack packet')
+                self.queue.put(packet)
+                continue
+
+            try:
+                packet = DExtraConnectNackPacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                self.logger.debug('received connect nack packet')
+                self.queue.put(packet)
+                continue
+
+            try:
                 packet = DExtraDisconnectPacket.from_data(data)
             except ValueError:
                 pass
             else:
                 self.logger.debug('received disconnect packet from %s', packet.src_callsign)
+                self.queue.put(packet)
+                continue
+
+            try:
+                packet = DExtraDisconnectAckPacket.from_data(data)
+            except ValueError:
+                pass
+            else:
+                self.logger.debug('received disconnect ack packet')
                 self.queue.put(packet)
                 continue
 
@@ -299,19 +325,34 @@ class DExtraConnection(object):
         self.sock = None
         self.receive_thread = None
 
-    def _receive_data(self, timeout=3):
-        elapsed = 0
-        step = 0.01
-        while elapsed < timeout:
-            data = self.sock.read()
-            if not data:
-                sleep(step)
-                elapsed += step
-                continue
+    def _connect(self, timeout=3):
+        connect_packet = DExtraConnectPacket(self.callsign, DSTARModule(' '), self.reflector_module, 1)
+        self.sock.write(connect_packet.to_data())
 
-            return data
-        else:
-            raise IOError
+        clock = time.clock()
+        limit = clock + timeout
+        while (clock < limit):
+            packet = self.read(timeout=limit - clock)
+            if packet:
+                if isinstance(packet, DExtraConnectAckPacket):
+                    return True
+                if isinstance(packet, DExtraConnectNackPacket):
+                    return False
+            clock = time.clock()
+        return False
+
+    def _disconnect(self, timeout=3):
+        disconnect_packet = DExtraDisconnectPacket(self.callsign, DSTARModule(' '))
+        self.sock.write(disconnect_packet.to_data())
+
+        clock = time.clock()
+        limit = clock + timeout
+        while (clock < limit):
+            packet = self.read(timeout=limit - clock)
+            if packet and isinstance(packet, DExtraDisconnectAckPacket):
+                return True
+            clock = time.clock()
+        return False
 
     def open(self):
         or_valueerror(self.sock is None)
@@ -325,34 +366,19 @@ class DExtraConnection(object):
             return False
         self.logger.info('connected to reflector %s at address %s', self.reflector_callsign, self.reflector_address)
 
-        connect_packet = DExtraConnectPacket(self.callsign, DSTARModule(' '), self.reflector_module, 1)
-        self.sock.write(connect_packet.to_data())
+        self.receive_thread = DExtraReceiveThread(self.callsign, self.sock)
+        self.receive_thread.start()
 
-        try:
-            data = self._receive_data()
-        except IOError:
-            self.logger.error('connect request timed out')
-            return False
-
-        try:
-            _ = DExtraConnectAckPacket.from_data(data)
-        except ValueError:
-            pass
-        else:
-            self.receive_thread = DExtraReceiveThread(self.callsign, self.sock)
-            self.receive_thread.start()
-            return True
-
-        try:
-            _ = DExtraConnectNackPacket.from_data(data)
-        except ValueError:
-            self.logger.error('unrecognized response to connect request')
-            return False
-        else:
-            self.logger.warning('reflector rejected your connect request')
-            return False
+        return self._connect()
 
     def close(self):
+        while not self.receive_thread.queue.empty():
+            self.receive_thread.queue.get()
+
+        self._disconnect()
+
+        self.receive_thread.join()
+
         if self.sock:
             self.sock.close()
         self.sock = None
@@ -365,8 +391,17 @@ class DExtraConnection(object):
     def __exit__(self, type, value, traceback):
         self.close()
 
-    def read(self, block=True, timeout=None):
-        return self.receive_thread.queue.get(block, timeout)
+    def read(self, timeout=3):
+        elapsed = 0
+        step = 0.01
+        while elapsed < timeout:
+            try:
+                return self.receive_thread.queue.get(True, step)
+            except Queue.Empty:
+                time.sleep(step)
+                elapsed += step
+                continue
+        return None
 
 def dextra_recorder():
     import sys
@@ -395,7 +430,11 @@ def dextra_recorder():
 
     try:
         with DExtraConnection(callsign, reflector_callsign, reflector_module, reflector_address) as conn:
-            packet = conn.read()
+            try:
+                while True:
+                    packet = conn.read()
+            except KeyboardInterrupt:
+                pass
     except Exception as e:
         print str(e)
         sys.exit(1)
