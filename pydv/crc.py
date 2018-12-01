@@ -62,14 +62,10 @@ class CCITTChecksum(object):
 
         return chr(~crc_0 & 0xff) + chr(~crc_1 & 0xff) 
 
-    def check(self, data):
-        assert(len(data) >= 2)
-
-        return self.result() == data[:2]
-
 if __name__ == '__main__':
-    data = '123456789'
+    import struct
+
+    data = '\x00\x00\x00XRF303 BXRF303 GCQCQCQ  SV9OAN      '
     c = CCITTChecksum()
     c.update(data)
-    result = c.result()
-    print 'checksum for "%s": 0x%x%x' % (data, ord(result[0]), ord(result[1]))
+    print 'checksum for %s is %s' % (repr(data), repr(c.result()))

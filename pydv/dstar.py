@@ -20,153 +20,6 @@ import string
 from crc import CCITTChecksum
 from utils import or_valueerror
 
-RADIO_HEADER_LENGTH_BYTES = 41
-
-LONG_CALLSIGN_LENGTH  = 8
-SHORT_CALLSIGN_LENGTH = 4
-
-DATA_MASK           = 0x80
-REPEATER_MASK       = 0x40
-INTERRUPTED_MASK    = 0x20
-CONTROL_SIGNAL_MASK = 0x10
-URGENT_MASK         = 0x08
-
-REPEATER_CONTROL_MASK = 0x07
-REPEATER_CONTROL      = 0x07
-AUTO_REPLY            = 0x06
-RESEND_REQUESTED      = 0x04
-ACK_FLAG              = 0x03
-NO_RESPONSE           = 0x02
-RELAY_UNAVAILABLE     = 0x01
-
-def pad_callsign(self, callsign, size):
-    return (callsign + (size * ' '))[:size]
-
-class DSTARHeader(object):
-    def __init__(self,
-                 my_call_1='',
-                 my_call_2='',
-                 your_call='',
-                 rpt_call_1='',
-                 rpt_call_2='',
-                 flag_1=0,
-                 flag_2=0,
-                 flag_3=0):
-        self.my_call_1 = my_call_1
-        self.my_call_2 = my_call_2
-        self.your_call = your_call
-        self.rpt_call_1 = rpt_call_1
-        self.rpt_call_2 = rpt_call_2
-        self.flag_1 = flag_1
-        self.flag_2 = flag_2
-        self.flag_3 = flag_3
-
-        self.fmt = 'BBB{lc}s{lc}s{lc}s{lc}s{sc}s'.format(lc=LONG_CALLSIGN_LENGTH,
-                                                         sc=SHORT_CALLSIGN_LENGTH)
-
-    def load(data, check=True):
-        or_valueerror(len(data) >= RADIO_HEADER_LENGTH_BYTES - (0 if check else 2))
-
-        (self.flag_1,
-         self.flag_2,
-         self.flag_3,
-         self.rpt_call_2,
-         self.rpt_call_1,
-         self.your_call,
-         self.my_call_1,
-         self.my_call_2) = struct.unpack(self.fmt, data[:RADIO_HEADER_LENGTH_BYTES - 2]) 
-
-        if check:
-            cksum = CCITTChecksum()
-            cksum.update(data[:RADIO_HEADER_LENGTH_BYTES - 2])
-            if not cksum.check(data[RADIO_HEADER_LENGTH_BYTES - 2:RADIO_HEADER_LENGTH_BYTES]):
-                raise ValueError
-
-    def dump(check=True):
-        data = struct.pack(self.fmt, self.flag_1,
-                                     self.flag_2,
-                                     self.flag_3,
-                                     pad_callsign(self.rpt_call_2, LONG_CALLSIGN_LENGTH),
-                                     pad_callsign(self.rpt_call_1, LONG_CALLSIGN_LENGTH),
-                                     pad_callsign(self.your_call, LONG_CALLSIGN_LENGTH),
-                                     pad_callsign(self.my_call_1, LONG_CALLSIGN_LENGTH),
-                                     pad_callsign(self.my_call_2, SHORT_CALLSIGN_LENGTH))
-
-        if check:
-            cksum = CCITTChecksum()
-            cksum.update(data)
-            data += cksum.result()
-        else:
-            data += '\xff\xff'
-
-        return data
-
-    @property
-    def is_repeater_mode(self):
-        return (self.flag_1 & REPEATER_MASK) == REPEATER_MASK
-
-    @is_repeater_mode.setter
-    def is_repeater_mode(self, value):
-        if value:
-            self.flag_1 |= REPEATER_MASK
-        else:
-            self.flag_1 &= ~REPEATER_MASK
-            self.rpt_call_1 = 'DIRECT  '
-            self.rpt_call_2 = 'DIRECT  '
-
-    @property
-    def is_data_packet(self):
-        return (self.flag_1 & DATA_MASK) == DATA_MASK
-
-    @is_data_packet.setter
-    def is_data_packet(self, value):
-        if value:
-            self.flag_1 |= DATA_MASK
-        else:
-            self.flag_1 &= ~DATA_MASK
-
-    @property
-    def is_interrupted(self):
-        return (self.flag_1 & INTERRUPTED_MASK) == INTERRUPTED_MASK;
-
-    @is_interrupted.setter
-    def is_interrupted(self, value):
-        if value:
-            self.flag_1 |= INTERRUPTED_MASK
-        else:
-            self.flag_1 &= ~INTERRUPTED_MASK
-
-    @property
-    def is_control_signal(self):
-        return (self.flag_1 & CONTROL_SIGNAL_MASK) == CONTROL_SIGNAL_MASK;
-
-    @is_control_signal.setter
-    def is_control_signal(self, value):
-        if value:
-            self.flag_1 |= CONTROL_SIGNAL_MASK
-        else:
-            self.flag_1 &= ~CONTROL_SIGNAL_MASK
-
-    @property
-    def is_urgent(self):
-        return (self.flag_1 & URGENT_MASK) == URGENT_MASK;
-
-    @is_urgent.setter
-    def is_urgent(self, value):
-        if value:
-            self.flag_1 |= URGENT_MASK
-        else:
-            self.flag_1 &= ~URGENT_MASK
-
-    @property
-    def repeater_flags(self):
-        return self.flag_1 & REPEATER_CONTROL_MASK;
-
-    @repeater_flags.setter
-    def repeater_flags(self, value):
-        self.flag_1 &= ~REPEATER_CONTROL_MASK
-        self.flag_1 |= value & REPEATER_CONTROL_MASK
-
 class DSTARCallsign(object):
     __slots__ = ['callsign']
 
@@ -175,11 +28,24 @@ class DSTARCallsign(object):
         or_valueerror(set(callsign[:3]).issubset(string.ascii_letters + string.digits))
         or_valueerror(not callsign[:3].isdigit())
         or_valueerror(set(callsign[3:]).issubset(string.ascii_letters + string.digits + ' '))
+        or_valueerror(len(callsign) <= 8)
 
         self.callsign = callsign.upper()
 
     def __str__(self):
         return '{: <8}'.format(self.callsign)
+
+class DSTARSuffix(object):
+    __slots__ = ['suffix']
+
+    def __init__(self, suffix):
+        or_valueerror(set(suffix).issubset(string.ascii_letters + string.digits + ' '))
+        or_valueerror(len(suffix) <= 4)
+
+        self.suffix = suffix.upper()
+
+    def __str__(self):
+        return '{: <4}'.format(self.suffix)
 
 class DSTARModule(object):
     __slots__ = ['module']
@@ -192,3 +58,90 @@ class DSTARModule(object):
 
     def __str__(self):
         return self.module
+
+class DSTARHeader(object):
+    __slots__ = ['flag_1',
+                 'flag_2',
+                 'flag_3',
+                 'repeater_1_callsign',
+                 'repeater_2_callsign',
+                 'ur_callsign',
+                 'my_callsign',
+                 'my_suffix']
+
+    def __init__(self,
+                 flag_1,
+                 flag_2,
+                 flag_3,
+                 repeater_1_callsign,
+                 repeater_2_callsign,
+                 ur_callsign,
+                 my_callsign,
+                 my_suffix):
+        self.flag_1 = flag_1
+        self.flag_2 = flag_2
+        self.flag_3 = flag_3
+        self.repeater_1_callsign = repeater_1_callsign
+        self.repeater_2_callsign = repeater_2_callsign
+        self.ur_callsign = ur_callsign
+        self.my_callsign = my_callsign
+        self.my_suffix = my_suffix
+
+    @classmethod
+    def from_data(cls, data):
+        or_valueerror(len(data) == 41)
+        header, crc = data[:39], data[39:]
+        flag_1, \
+        flag_2, \
+        flag_3, \
+        repeater_1_callsign, \
+        repeater_2_callsign, \
+        ur_callsign, \
+        my_callsign, \
+        my_suffix = struct.unpack('BBB8s8s8s8s4s', header)
+        repeater_1_callsign = DSTARCallsign(repeater_1_callsign)
+        repeater_2_callsign = DSTARCallsign(repeater_2_callsign)
+        ur_callsign = DSTARCallsign(ur_callsign)
+        my_callsign = DSTARCallsign(my_callsign)
+        my_suffix = DSTARSuffix(my_suffix)
+        checksum = CCITTChecksum()
+        checksum.update(header)
+        or_valueerror(crc == checksum.result())
+        return cls(flag_1,
+                   flag_2,
+                   flag_3,
+                   repeater_1_callsign,
+                   repeater_2_callsign,
+                   ur_callsign,
+                   my_callsign,
+                   my_suffix)
+
+    def to_data(self):
+        header = struct.pack('BBB8s8s8s8s4s', self.flag_1,
+                                              self.flag_2,
+                                              self.flag_3,
+                                              self.repeater_1_callsign,
+                                              self.repeater_2_callsign,
+                                              self.ur_callsign,
+                                              self.my_callsign,
+                                              self.my_suffix)
+        checksum = CCITTChecksum()
+        checksum.update(header)
+        crc = checksum.result()
+        return header + crc
+
+class DSTARFrame(object):
+    __slots__ = ['ambe', 'dvdata']
+
+    def __init__(self, ambe, dvdata):
+        self.ambe = ambe
+        self.dvdata = dvdata
+
+    @classmethod
+    def from_data(cls, data):
+        or_valueerror(len(data) == 12)
+        ambe, dvdata = data[:9], data[9:]
+        return cls(ambe, dvdata)
+
+    def to_data(self):
+        return self.ambe + self.dvdata

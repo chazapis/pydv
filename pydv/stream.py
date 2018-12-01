@@ -16,15 +16,19 @@
 
 import struct
 
+from dstar import DSTARHeader, DSTARFrame
 from utils import or_valueerror
 
 class Packet(object):
     pass
 
 class DVHeaderPacket(Packet):
-    __slots__ = ['stream_id', 'dstar_header']
+    __slots__ = ['band_1', 'band_2', 'band_3', 'stream_id', 'dstar_header']
 
-    def __init__(self, stream_id, dstar_header):
+    def __init__(self, band_1, band_2, band_3, stream_id, dstar_header):
+        self.band_1 = band_1
+        self.band_2 = band_2
+        self.band_3 = band_3
         self.stream_id = stream_id
         self.dstar_header = dstar_header
 
@@ -34,25 +38,30 @@ class DVHeaderPacket(Packet):
         or_valueerror(data[:4] == 'DSVT')
         or_valueerror(data[4] == '\x10')
         or_valueerror(data[8] == '\x20')
-        stream_id, = struct.unpack('<H', data[12:14])
-        return cls(stream_id, data[15:])
+        band_1, band_2, band_3, stream_id = struct.unpack('<BBBH', data[9:14])
+        dstar_header = DSTARHeader.from_data(data[15:])
+        return cls(band_1, band_2, band_3, stream_id, dstar_header)
 
     def to_data(self):
-        # XXX ON1ARF in "Format of files and UDP-streams used on D-STAR"
-        # says the 12th byte should be \x01, while LX3JL uses \x02 in xlxd
-        return ('DSVT\x10\x00\x00\x00\x20\x00\x01\x02' +
-                struct.pack('<H', self.stream_id) +
+        return ('DSVT\x10\x00\x00\x00\x20' +
+                struct.pack('<BBBH', self.band_1, self.band_2, self.band3, self.stream_id) +
                 '\x80' +
-                self.dstar_header)
+                self.dstar_header.to_data())
 
 class DVFramePacket(Packet):
-    __slots__ = ['stream_id', 'packet_id', 'is_last', 'dstar_frame']
+    __slots__ = ['band_1', 'band_2', 'band_3', 'stream_id', 'packet_id', 'dstar_frame']
 
-    def __init__(self, stream_id, packet_id, is_last, dstar_frame):
+    def __init__(self, band_1, band_2, band_3, stream_id, packet_id, dstar_frame):
+        self.band_1 = band_1
+        self.band_2 = band_2
+        self.band_3 = band_3
         self.stream_id = stream_id
         self.packet_id = packet_id
-        self.is_last = is_last
         self.dstar_frame = dstar_frame
+
+    @property
+    def is_last(self):
+        return self.packet_id & 64 != 0
 
     @classmethod
     def from_data(cls, data):
@@ -60,12 +69,11 @@ class DVFramePacket(Packet):
         or_valueerror(data[:4] == 'DSVT')
         or_valueerror(data[4] == '\x20')
         or_valueerror(data[8] == '\x20')
-        stream_id, packet_id = struct.unpack('<HB', data[12:15])
-        is_last = (packet_id & 64 != 0)
-        return cls(stream_id, packet_id, is_last, data[15:])
+        band_1, band_2, band_3, stream_id, packet_id = struct.unpack('<BBBHB', data[9:15])
+        dstar_frame = DSTARFrame.from_data(data[15:])
+        return cls(band_1, band_2, band_3, stream_id, packet_id, dstar_frame)
 
     def to_data(self):
-        # XXX Same as above for 12th byte
-        return ('DSVT\x20\x00\x00\x00\x20\x00\x01\x02' +
-                struct.pack('<HB', self.stream_id, self.packet_id % 21) +
-                self.dstar_frame)
+        return ('DSVT\x20\x00\x00\x00\x20' +
+                struct.pack('<BBBHB', self.band_1, self.band_2, self.band_3, self.stream_id, self.packet_id) +
+                self.dstar_frame.to_data())

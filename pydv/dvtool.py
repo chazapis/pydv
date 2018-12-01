@@ -59,16 +59,16 @@ class DVToolFile(object):
         self.f.write('DVTOOL' + struct.pack('<I', len(stream)))
         for i, packet in enumerate(stream):
             self.f.write(struct.pack('<H', 56 if i == 0 else 27) + packet.to_data())
-        self.logger.info('wrote a stream of %s frames in %s', len(stream), self.name)
+        self.logger.info('wrote a stream of %s packets in %s', len(stream), self.name)
 
     def read(self):
         self.f.seek(0)
 
         stream = []
-        magic, count = struct.unpack('4s<I', self.f.read(10))
+        magic, count = struct.unpack('<6sI', self.f.read(10))
         or_valueerror(magic == 'DVTOOL')
         for i in xrange(count):
-            size = struct.unpack('<H', self.f.read(2))
+            size, = struct.unpack('<H', self.f.read(2))
             data = self.f.read(size)
             if i == 0:
                 or_valueerror(size == 56)
@@ -77,5 +77,25 @@ class DVToolFile(object):
                 or_valueerror(size == 27)
                 packet = DVFramePacket.from_data(data)
             stream.append(packet)
-        self.logger.info('read a stream of %s frames from %s', len(stream), self.name)
+        self.logger.info('read a stream of %s packets from %s', len(stream), self.name)
         return stream
+
+def dvtool_player():
+    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser(description='DVTool player. Connects to DExtra server and plays back recordings.')
+    parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
+    parser.add_argument('filename', help='name of file to play back')
+    args = parser.parse_args()
+
+    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.DEBUG if args.verbose else logging.INFO)
+    logger = logging.getLogger(sys.argv[0])
+
+    with DVToolFile(args.filename) as f:
+        stream = f.read()
+
+if __name__ == '__main__':
+    dvtool_player()
