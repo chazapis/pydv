@@ -1,7 +1,4 @@
-# Copyright (C) 2017 by Antony Chazapis SV9OAN
-#
-# Based on OpenDV:
-# Copyright (C) 2006-2013 by Jonathan Naylor G4KLX
+# Copyright (C) 2018 by Antony Chazapis SV9OAN
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

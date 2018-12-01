@@ -87,7 +87,7 @@ class UDPClientSocket(object):
 
         self.logger.debug('write %d bytes to %s: %s', len(data), self.remote_address, repr(data))
         length = self.sock.sendto(data, self.remote_address)
-        self.logger.debug('written %d bytes', length)
+        self.logger.debug('wrote %d bytes', length)
 
         if length != len(data):
             return False
