@@ -72,5 +72,8 @@ def dv_recorder():
         logger.error(str(e))
         sys.exit(1)
 
+def main():
+    dv_recorder()
+
 if __name__ == '__main__':
     dv_recorder()

@@ -76,5 +76,8 @@ def dv_player():
         logger.error(str(e))
         sys.exit(1)
 
+def main():
+    dv_player()
+
 if __name__ == '__main__':
     dv_player()
