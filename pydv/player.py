@@ -1,0 +1,80 @@
+# Copyright (C) 2018 Antony Chazapis SV9OAN
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+import sys
+import argparse
+import logging
+import random
+
+from dstar import DSTARCallsign, DSTARSuffix, DSTARModule
+from dextra import DExtraConnection, DExtraDisconnectedError
+from stream import DVHeaderPacket, DVFramePacket
+from network import NetworkAddress
+from dvtool import DVToolFile
+
+def dv_player():
+    parser = argparse.ArgumentParser(description='D-STAR player. Connects to reflector and plays back recordings.')
+    parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
+    parser.add_argument('callsign', help='your callsign')
+    parser.add_argument('reflector', help='reflector\'s callsign')
+    parser.add_argument('module', help='reflector\'s module')
+    parser.add_argument('address', help='reflector\'s hostname or IP address')
+    parser.add_argument('filename', help='name of file to play back')
+    args = parser.parse_args()
+
+    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.DEBUG if args.verbose else logging.INFO)
+    logger = logging.getLogger(sys.argv[0])
+
+    try:
+        callsign = DSTARCallsign(args.callsign)
+        reflector_callsign = DSTARCallsign(args.reflector)
+        reflector_module = DSTARModule(args.module)
+        reflector_address = NetworkAddress(args.address, DExtraConnection.DEFAULT_PORT)
+    except ValueError:
+        print parser.print_help()
+        sys.exit(1)
+
+    try:
+        with DVToolFile(args.filename) as f:
+            stream = f.read()
+    except Exception as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+    header = stream[0]
+    header.dstar_header.my_callsign = callsign
+    header.dstar_header.my_suffix = DSTARSuffix('    ')
+    header.dstar_header.ur_callsign = DSTARCallsign('CQCQCQ')
+    header.dstar_header.repeater_1_callsign = DSTARCallsign(str(reflector_callsign)[:7] + str(reflector_module))
+    header.dstar_header.repeater_2_callsign = DSTARCallsign(str(reflector_callsign)[:7] + 'G')
+    stream_id = random.getrandbits(16)
+
+    try:
+        with DExtraConnection(callsign, DSTARModule(' '), reflector_callsign, reflector_module, reflector_address) as conn:
+            try:
+                for packet in stream:
+                    packet.stream_id = stream_id
+                    conn.write(packet)
+            except (DExtraDisconnectedError, KeyboardInterrupt):
+                pass
+    except Exception as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+if __name__ == '__main__':
+    dv_player()

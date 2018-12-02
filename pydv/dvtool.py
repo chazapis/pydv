@@ -79,23 +79,3 @@ class DVToolFile(object):
             stream.append(packet)
         self.logger.info('read a stream of %s packets from %s', len(stream), self.name)
         return stream
-
-def dvtool_player():
-    import sys
-    import argparse
-
-    parser = argparse.ArgumentParser(description='DVTool player. Connects to DExtra server and plays back recordings.')
-    parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
-    parser.add_argument('filename', help='name of file to play back')
-    args = parser.parse_args()
-
-    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.DEBUG if args.verbose else logging.INFO)
-    logger = logging.getLogger(sys.argv[0])
-
-    with DVToolFile(args.filename) as f:
-        stream = f.read()
-
-if __name__ == '__main__':
-    dvtool_player()

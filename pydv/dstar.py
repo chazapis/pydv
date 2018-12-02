@@ -120,11 +120,11 @@ class DSTARHeader(object):
         header = struct.pack('BBB8s8s8s8s4s', self.flag_1,
                                               self.flag_2,
                                               self.flag_3,
-                                              self.repeater_1_callsign,
-                                              self.repeater_2_callsign,
-                                              self.ur_callsign,
-                                              self.my_callsign,
-                                              self.my_suffix)
+                                              str(self.repeater_1_callsign),
+                                              str(self.repeater_2_callsign),
+                                              str(self.ur_callsign),
+                                              str(self.my_callsign),
+                                              str(self.my_suffix))
         checksum = CCITTChecksum()
         checksum.update(header)
         crc = checksum.result()

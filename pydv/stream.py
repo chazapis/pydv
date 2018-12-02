@@ -44,7 +44,7 @@ class DVHeaderPacket(Packet):
 
     def to_data(self):
         return ('DSVT\x10\x00\x00\x00\x20' +
-                struct.pack('<BBBH', self.band_1, self.band_2, self.band3, self.stream_id) +
+                struct.pack('<BBBH', self.band_1, self.band_2, self.band_3, self.stream_id) +
                 '\x80' +
                 self.dstar_header.to_data())
 

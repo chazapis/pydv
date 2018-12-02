@@ -21,11 +21,8 @@ import Queue
 
 from dstar import DSTARCallsign, DSTARModule
 from stream import Packet, DVHeaderPacket, DVFramePacket
-from network import NetworkAddress, UDPClientSocket
+from network import UDPClientSocket
 from utils import or_valueerror, StoppableThread
-from dvtool import DVToolFile
-
-DEXTRA_PORT = 30001
 
 class DExtraConnectPacket(Packet):
     __slots__ = ['src_callsign', 'src_module', 'dest_module', 'revision']
@@ -266,6 +263,8 @@ class DExtraDisconnectedError(Exception):
     pass
 
 class DExtraConnection(object):
+    DEFAULT_PORT = 30001
+
     def __init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.debug('initialized with callsign %s module %s reflector callsign %s reflector_module %s reflector_address %s', callsign, module, reflector_callsign, reflector_module, reflector_address)
@@ -365,56 +364,5 @@ class DExtraConnection(object):
                 continue
         return None
 
-def dextra_recorder():
-    import sys
-    import argparse
-
-    parser = argparse.ArgumentParser(description='DExtra recorder. Connects to DExtra server and records traffic.')
-    parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
-    parser.add_argument('callsign', help='your callsign')
-    parser.add_argument('reflector', help='reflector\'s callsign')
-    parser.add_argument('module', help='reflector\'s module')
-    parser.add_argument('address', help='reflector\'s hostname or IP address')
-    args = parser.parse_args()
-
-    logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.DEBUG if args.verbose else logging.INFO)
-    logger = logging.getLogger(sys.argv[0])
-
-    try:
-        callsign = DSTARCallsign(args.callsign)
-        reflector_callsign = DSTARCallsign(args.reflector)
-        reflector_module = DSTARModule(args.module)
-        reflector_address = NetworkAddress(args.address, DEXTRA_PORT)
-    except ValueError:
-        print parser.print_help()
-        sys.exit(1)
-
-    try:
-        stream_id = None
-        with DExtraConnection(callsign, DSTARModule(' '), reflector_callsign, reflector_module, reflector_address) as conn:
-            try:
-                while True:
-                    packet = conn.read()
-                    if isinstance(packet, DVHeaderPacket):
-                        if packet.stream_id != stream_id:
-                            stream_id = packet.stream_id
-                            stream = [packet]
-                    elif isinstance(packet, DVFramePacket):
-                        if packet.stream_id == stream_id:
-                            stream.append(packet)
-                            if packet.is_last:
-                                with DVToolFile('%s.dvtool' % stream_id) as f:
-                                    f.write(stream)
-                                stream_id = None
-                    else:
-                        pass
-            except (DExtraDisconnectedError, KeyboardInterrupt):
-                pass
-    except Exception as e:
-        logger.error(str(e))
-        sys.exit(1)
-
-if __name__ == '__main__':
-    dextra_recorder()
+    def write(self, packet):
+        return self.sock.write(packet.to_data())
