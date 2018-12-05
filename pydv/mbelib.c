@@ -75,6 +75,7 @@ static PyObject* init_state(PyObject* self) {
 
 static PyObject *set_uvquality(PyObject *self, PyObject *args) {
     PyObject *capsule = NULL;
+
     int uvquality;
     if (!PyArg_ParseTuple(args, "Oi", &capsule, &uvquality))
         return NULL;
@@ -91,6 +92,7 @@ static PyObject *set_uvquality(PyObject *self, PyObject *args) {
 
 static PyObject *get_uvquality(PyObject *self, PyObject *args) {
     PyObject *capsule = NULL;
+
     if (!PyArg_ParseTuple(args, "O", &capsule))
         return NULL;
 
@@ -99,20 +101,41 @@ static PyObject *get_uvquality(PyObject *self, PyObject *args) {
         return NULL;
 
     printf("Getting uvquality of state %p\n", state);
-
     return Py_BuildValue("i", state->uvquality);
 }
 
 static PyObject *decode_ambe(PyObject *self, PyObject *args) {
     PyObject *capsule = NULL;
-    if (!PyArg_ParseTuple(args, "O", &capsule))
+    const char *buffer;
+    Py_ssize_t count;
+
+    if (!PyArg_ParseTuple(args, "Os#", &capsule, &buffer, &count))
+        return NULL;
+    if (count != 9)
         return NULL;
 
     struct mbelib_state *state = (struct mbelib_state *)PyCapsule_GetPointer(capsule, NULL);
     if (state == NULL)
         return NULL;
 
+    char ambe_fr[4][24];
+    char ambe_d[49];
+    int i, dibit;
+    const int *w, *x;
+
+    memset(ambe_fr, 0, 96);
+    memset(ambe_d, 0, 49);
+    w = dW;
+    x = dX;
+    for (i = 0; i < 72; i++) {
+        dibit = (buffer[i / 8] >> (7 - (i % 8))) & 1;
+        ambe_fr[*w][*x] = dibit;
+        w++;
+        x++;
+    }
+
     printf("Decoding AMBE\n");
+    mbe_processAmbe3600x2400Framef(state->aout_buf, &state->errs, &state->errs2, state->err_str, ambe_fr, ambe_d, &state->cur_mp, &state->prev_mp, &state->prev_mp_enhanced, state->uvquality);
 
     Py_RETURN_NONE;
 }
