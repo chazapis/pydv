@@ -53,7 +53,7 @@ def dv_decoder():
     for packet in stream:
         if not isinstance(packet, DVFramePacket):
             continue
-        samples = pydv.mbelib.decode_ambe(state, packet.dstar_frame.ambe)
+        samples = pydv.mbelib.decode_dstar(state, packet.dstar_frame.ambe)
         data = struct.pack('<160h', *samples)
         wavef.writeframes(data)
 

@@ -106,7 +106,7 @@ static PyObject *get_uvquality(PyObject *self, PyObject *args) {
     return Py_BuildValue("i", state->uvquality);
 }
 
-static PyObject *decode_ambe(PyObject *self, PyObject *args) {
+static PyObject *decode_dstar(PyObject *self, PyObject *args) {
     PyObject *capsule = NULL;
     const char *buffer;
     Py_ssize_t count;
@@ -159,7 +159,7 @@ static PyMethodDef mbelib_funcs[] = {
     {"init_state", (PyCFunction)init_state, METH_NOARGS, NULL},
     {"set_uvquality", set_uvquality, METH_VARARGS, NULL},
     {"get_uvquality", get_uvquality, METH_VARARGS, NULL},
-    {"decode_ambe", decode_ambe, METH_VARARGS, NULL},
+    {"decode_dstar", decode_dstar, METH_VARARGS, NULL},
     {NULL}
 };
 
