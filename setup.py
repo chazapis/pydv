@@ -8,7 +8,7 @@ def long_description():
 
 setuptools.setup(
     name='pydv',
-    version='0.1',
+    version='0.2',
     author='Antony Chazapis',
     author_email='chazapis@gmail.com',
     description='D-STAR library and utilities in Python',
