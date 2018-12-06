@@ -14,6 +14,8 @@
 // along with this program; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+#define PY_SSIZE_T_CLEAN
+
 #include <Python.h>
 #include <mbelib.h>
 
@@ -40,7 +42,7 @@ struct mbelib_state {
     mbe_parms prev_mp;
     mbe_parms prev_mp_enhanced;
 
-    float aout_buf[160];
+    short aout_buf[160];
 
     int errs;
     int errs2;
@@ -54,7 +56,7 @@ void free_state(PyObject *capsule) {
     if (state == NULL)
         return;
 
-    fprintf(stderr, "Freeing state %p\n", state);
+    // printf("Freeing state %p\n", state);
     free(state);
 }
 
@@ -69,7 +71,7 @@ static PyObject* init_state(PyObject* self) {
     state->err_str[0] = 0;
     state->uvquality = 3;
 
-    fprintf(stderr, "Allocated state %p\n", state);
+    // printf("Allocated state %p\n", state);
     return PyCapsule_New((void *)state, NULL, free_state);
 }
 
@@ -84,7 +86,7 @@ static PyObject *set_uvquality(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Setting uvquality in state %p to value %d\n", state, uvquality);
+    // printf("Setting uvquality in state %p to value %d\n", state, uvquality);
     state->uvquality = uvquality;
 
     Py_RETURN_NONE;
@@ -100,7 +102,7 @@ static PyObject *get_uvquality(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Getting uvquality of state %p\n", state);
+    // printf("Getting uvquality of state %p\n", state);
     return Py_BuildValue("i", state->uvquality);
 }
 
@@ -123,21 +125,34 @@ static PyObject *decode_ambe(PyObject *self, PyObject *args) {
     int i, dibit;
     const int *w, *x;
 
-    memset(ambe_fr, 0, 96);
+    memset(ambe_fr, 0, 4 * 24);
     memset(ambe_d, 0, 49);
     w = dW;
     x = dX;
     for (i = 0; i < 72; i++) {
-        dibit = (buffer[i / 8] >> (7 - (i % 8))) & 1;
+        dibit = (buffer[i / 8] >> (i % 8)) & 1;
         ambe_fr[*w][*x] = dibit;
         w++;
         x++;
     }
 
-    printf("Decoding AMBE\n");
-    mbe_processAmbe3600x2400Framef(state->aout_buf, &state->errs, &state->errs2, state->err_str, ambe_fr, ambe_d, &state->cur_mp, &state->prev_mp, &state->prev_mp_enhanced, state->uvquality);
+    // printf("Decoding AMBE with state %p\n", state);
+    mbe_processAmbe3600x2400Frame(state->aout_buf, &state->errs, &state->errs2, state->err_str, ambe_fr, ambe_d, &state->cur_mp, &state->prev_mp, &state->prev_mp_enhanced, state->uvquality);
 
-    Py_RETURN_NONE;
+    PyObject *result = PyTuple_New(160);
+    if (result == NULL)
+        return NULL;
+
+    PyObject *item;
+    for (i = 0; i < 160; i++) {
+        item = Py_BuildValue("i", state->aout_buf[i]);
+        if (item == NULL) {
+            return NULL;
+        }
+        PyTuple_SetItem(result, i, item);
+    }
+
+    return result;
 }
 
 static PyMethodDef mbelib_funcs[] = {

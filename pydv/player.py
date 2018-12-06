@@ -32,7 +32,7 @@ def dv_player():
     parser.add_argument('reflector', help='reflector\'s callsign')
     parser.add_argument('module', help='reflector\'s module')
     parser.add_argument('address', help='reflector\'s hostname or IP address')
-    parser.add_argument('filename', help='name of file to play back')
+    parser.add_argument('input', help='name of file to play back (DVTool format)')
     args = parser.parse_args()
 
     logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
@@ -50,7 +50,7 @@ def dv_player():
         sys.exit(1)
 
     try:
-        with DVToolFile(args.filename) as f:
+        with DVToolFile(args.input) as f:
             stream = f.read()
     except Exception as e:
         logger.error(str(e))
