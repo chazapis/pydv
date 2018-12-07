@@ -164,5 +164,5 @@ static PyMethodDef mbelib_funcs[] = {
 };
 
 void initmbelib(void) {
-    Py_InitModule3("mbelib", mbelib_funcs, "Extension module example!");
+    Py_InitModule3("mbelib", mbelib_funcs, "Python interface to mbelib");
 }
