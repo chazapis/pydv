@@ -113,8 +113,10 @@ static PyObject *decode_dstar(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(args, "Os#", &capsule, &buffer, &count))
         return NULL;
-    if (count != 9)
+    if (count != 9) {
+        fprintf(stderr, "pydv.mbelib.decode_dstar: input should be 9 bytes\n");
         return NULL;
+    }
 
     struct mbelib_state *state = (struct mbelib_state *)PyCapsule_GetPointer(capsule, NULL);
     if (state == NULL)

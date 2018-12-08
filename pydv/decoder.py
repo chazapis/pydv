@@ -21,6 +21,7 @@ import wave
 import struct
 
 import pydv.mbelib
+import pydv.codec2
 
 from stream import DVFramePacket
 from dvtool import DVToolFile
@@ -49,13 +50,29 @@ def dv_decoder():
     wavef.setsampwidth(2)
     wavef.setframerate(8000)
 
+    raw_samples = []
+
     state = pydv.mbelib.init_state()
     for packet in stream:
         if not isinstance(packet, DVFramePacket):
             continue
         samples = pydv.mbelib.decode_dstar(state, packet.dstar_frame.ambe)
         data = struct.pack('<160h', *samples)
+        raw_samples.append(data)
         wavef.writeframes(data)
+
+    wavef.close()
+
+    wavef = wave.open('codec.wav','w')
+    wavef.setnchannels(1)
+    wavef.setsampwidth(2)
+    wavef.setframerate(8000)
+
+    state = pydv.codec2.init_state(pydv.codec2.MODE_2400)
+    for sample in raw_samples:
+        data = pydv.codec2.encode(state, sample)
+        print 'encoded sample: %r (len: %d)' % (data, len(data))
+        wavef.writeframes(pydv.codec2.decode(state, data))
 
     wavef.close()
 

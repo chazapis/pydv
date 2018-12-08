@@ -42,6 +42,97 @@ static PyObject* init_state(PyObject* self, PyObject *args) {
     return PyCapsule_New((void *)state, NULL, free_state);
 }
 
+static PyObject *encode(PyObject *self, PyObject *args) {
+    PyObject *capsule = NULL;
+    const char *buffer;
+    Py_ssize_t count;
+
+    if (!PyArg_ParseTuple(args, "Os#", &capsule, &buffer, &count))
+        return NULL;
+
+    struct CODEC2 *state = (struct CODEC2 *)PyCapsule_GetPointer(capsule, NULL);
+    if (state == NULL)
+        return NULL;
+
+    int nsam = codec2_samples_per_frame(state);
+
+    if ((count / sizeof(short)) != nsam) {
+        fprintf(stderr, "pydv.codec2.encode: input should be %d samples\n", nsam);
+        return NULL;
+    }
+
+    int nbit = codec2_bits_per_frame(state);
+    int nbyte = nbyte = (nbit + 7) / 8;
+    unsigned char *bits = (unsigned char *)malloc(nbyte);
+
+    codec2_encode(state, bits, (short *)buffer);
+
+    PyObject *item = Py_BuildValue("s#", bits, nbyte);
+    free(bits);
+    return item;
+}
+
+static PyObject *decode(PyObject *self, PyObject *args) {
+    PyObject *capsule = NULL;
+    const char *buffer;
+    Py_ssize_t count;
+
+    if (!PyArg_ParseTuple(args, "Os#", &capsule, &buffer, &count))
+        return NULL;
+
+    struct CODEC2 *state = (struct CODEC2 *)PyCapsule_GetPointer(capsule, NULL);
+    if (state == NULL)
+        return NULL;
+
+    int nbit = codec2_bits_per_frame(state);
+    int nbyte = nbyte = (nbit + 7) / 8;
+
+    if (count != nbyte) {
+        fprintf(stderr, "pydv.codec2.decode: input should be %d bytes\n", nbyte);
+        return NULL;
+    }
+
+    int nsam = codec2_samples_per_frame(state);
+    short *sound = (short *)malloc(nsam * sizeof(short));
+
+    codec2_decode(state, sound, (unsigned char *)buffer);
+
+    PyObject *item = Py_BuildValue("s#", sound, nsam * sizeof(short));
+    free(sound);
+    return item;
+}
+
+static PyObject *decode_ber(PyObject *self, PyObject *args) {
+    PyObject *capsule = NULL;
+    const char *buffer;
+    Py_ssize_t count;
+    float ber;
+
+    if (!PyArg_ParseTuple(args, "Os#f", &capsule, &buffer, &count, &ber))
+        return NULL;
+
+    struct CODEC2 *state = (struct CODEC2 *)PyCapsule_GetPointer(capsule, NULL);
+    if (state == NULL)
+        return NULL;
+
+    int nbit = codec2_bits_per_frame(state);
+    int nbyte = nbyte = (nbit + 7) / 8;
+
+    if (count != nbyte) {
+        fprintf(stderr, "pydv.codec2.decode_ber: input should be %d bytes\n", nbyte);
+        return NULL;
+    }
+
+    int nsam = codec2_samples_per_frame(state);
+    short *sound = (short *)malloc(nsam * sizeof(short));
+
+    codec2_decode_ber(state, sound, (unsigned char *)buffer, ber);
+
+    PyObject *item = Py_BuildValue("s#", sound, nsam * sizeof(short));
+    free(sound);
+    return item;
+}
+
 static PyObject *samples_per_frame(PyObject *self, PyObject *args) {
     PyObject *capsule = NULL;
 
@@ -70,6 +161,23 @@ static PyObject *bits_per_frame(PyObject *self, PyObject *args) {
     return Py_BuildValue("i", codec2_bits_per_frame(state));
 }
 
+static PyObject *set_lpc_post_filter(PyObject *self, PyObject *args) {
+    PyObject *capsule = NULL;
+    int enable, bass_boost;
+    float beta, gamma;
+
+    if (!PyArg_ParseTuple(args, "Oiiff", &capsule, &enable, &bass_boost, &beta, &gamma))
+        return NULL;
+
+    struct CODEC2 *state = (struct CODEC2 *)PyCapsule_GetPointer(capsule, NULL);
+    if (state == NULL)
+        return NULL;
+
+    printf("Setting lpc post filter of state %p to %d %d %f %f\n", state, enable, bass_boost, beta, gamma);
+    codec2_set_lpc_post_filter(state, enable, bass_boost, beta, gamma);
+    Py_RETURN_NONE;
+}
+
 static PyObject *get_spare_bit_index(PyObject *self, PyObject *args) {
     PyObject *capsule = NULL;
 
@@ -84,19 +192,58 @@ static PyObject *get_spare_bit_index(PyObject *self, PyObject *args) {
     return Py_BuildValue("i", codec2_get_spare_bit_index(state));
 }
 
+static PyObject *set_natural_or_gray(PyObject *self, PyObject *args) {
+    PyObject *capsule = NULL;
+    int gray;
+
+    if (!PyArg_ParseTuple(args, "Oi", &capsule, &gray))
+        return NULL;
+
+    struct CODEC2 *state = (struct CODEC2 *)PyCapsule_GetPointer(capsule, NULL);
+    if (state == NULL)
+        return NULL;
+
+    printf("Setting natural or gray of state %p to %d\n", state, gray);
+    codec2_set_natural_or_gray(state, gray);
+    Py_RETURN_NONE;
+}
+
+static PyObject *get_energy(PyObject *self, PyObject *args) {
+    PyObject *capsule = NULL;
+    const char *buffer;
+    Py_ssize_t count;
+
+    if (!PyArg_ParseTuple(args, "Os#", &capsule, &buffer, &count))
+        return NULL;
+
+    struct CODEC2 *state = (struct CODEC2 *)PyCapsule_GetPointer(capsule, NULL);
+    if (state == NULL)
+        return NULL;
+
+    int nbit = codec2_bits_per_frame(state);
+    int nbyte = nbyte = (nbit + 7) / 8;
+
+    if (count != nbyte) {
+        fprintf(stderr, "pydv.codec2.get_energy: input should be %d bytes\n", nbyte);
+        return NULL;
+    }
+
+    return Py_BuildValue("f", codec2_get_energy(state, (unsigned char *)buffer));
+}
+
 static PyMethodDef codec2_funcs[] = {
     {"init_state", init_state, METH_VARARGS, NULL},
-    // {"encode", encode, METH_VARARGS, NULL},
-    // {"decode", decode, METH_VARARGS, NULL},
-    // {"decode_ber", decode_ber, METH_VARARGS, NULL},
+    {"encode", encode, METH_VARARGS, NULL},
+    {"decode", decode, METH_VARARGS, NULL},
+    {"decode_ber", decode_ber, METH_VARARGS, NULL},
     {"samples_per_frame", samples_per_frame, METH_VARARGS, NULL},
     {"bits_per_frame", bits_per_frame, METH_VARARGS, NULL},
-    // {"set_lpc_post_filter", set_lpc_post_filter, METH_VARARGS, NULL},
+    {"set_lpc_post_filter", set_lpc_post_filter, METH_VARARGS, NULL},
     {"get_spare_bit_index", get_spare_bit_index, METH_VARARGS, NULL},
     // {"rebuild_spare_bit", rebuild_spare_bit, METH_VARARGS, NULL},
-    // {"set_natural_or_gray", set_natural_or_gray, METH_VARARGS, NULL},
+    {"set_natural_or_gray", set_natural_or_gray, METH_VARARGS, NULL},
     // {"set_softdec", set_softdec, METH_VARARGS, NULL},
-    // {"get_energy", get_energy, METH_VARARGS, NULL},
+    {"get_energy", get_energy, METH_VARARGS, NULL},
     {NULL}
 };
 
