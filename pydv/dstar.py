@@ -131,17 +131,18 @@ class DSTARHeader(object):
         return header + crc
 
 class DSTARFrame(object):
-    __slots__ = ['ambe', 'dvdata']
+    __slots__ = ['dvcodec', 'dvdata']
 
-    def __init__(self, ambe, dvdata):
-        self.ambe = ambe
+    def __init__(self, dvcodec, dvdata):
+        self.dvcodec = dvcodec
         self.dvdata = dvdata
 
     @classmethod
     def from_data(cls, data):
         or_valueerror(len(data) == 12)
-        ambe, dvdata = data[:9], data[9:]
-        return cls(ambe, dvdata)
+        dvcodec, dvdata = data[:9], data[9:]
+        return cls(dvcodec, dvdata)
 
     def to_data(self):
-        return self.ambe + self.dvdata
+        return self.dvcodec + ('\x00' * (9 - len(self.dvcodec))) + \
+               self.dvdata + ('\x00' * (3 - len(self.dvdata)))

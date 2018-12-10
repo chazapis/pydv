@@ -14,6 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+import os
 import sys
 import argparse
 import logging
@@ -23,7 +24,7 @@ import struct
 import pydv.mbelib
 import pydv.codec2
 
-from stream import DVFramePacket
+from stream import DVHeaderPacket, DVFramePacket
 from dvtool import DVToolFile
 
 def dv_decoder():
@@ -36,45 +37,78 @@ def dv_decoder():
     logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.DEBUG if args.verbose else logging.INFO)
-    logger = logging.getLogger(sys.argv[0])
+    logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
     try:
         with DVToolFile(args.input) as f:
             stream = f.read()
     except Exception as e:
+        raise
         logger.error(str(e))
         sys.exit(1)
+
+    header = stream[0]
+    if not isinstance(header, DVHeaderPacket):
+        logger.error('first packet in stream is not a header')
+        sys.exit(1)
+
+    # Determine vocoder (SV9OAN extension)
+    version = header.dstar_header.flag_3 & 0xff
+    if version == 0:
+        vocoder = 'ambe'
+        logger.info('stream encoded with AMBE vocoder')
+    elif version & 0x01 == 0x01:
+        # The first bit controls the vocoder type:
+        #   0: AMBE (backwards compatible)
+        #   1: Codec 2
+        #
+        # The second bit differentiates between modes, while the third
+        # enables FEC (not implemented):
+        # This results in the following combinations of bits 2 and 3:
+        #   00: 3200 mode (160 samples/20 ms into 64 bits)
+        #   01: 2400 mode (160 samples/20 ms into 48 bits)
+        #   10: 3200 mode (160 samples/20 ms into 64 bits + ? bits FEC)
+        #   11: 2400 mode (160 samples/20 ms into 48 bits + ? bits FEC)
+        #
+        # The space available in the frame is 72 bits, so that leaves
+        # us with 8 bits in the case of 3200 mode (is it enough?) and
+        # 24 in the case of 2400 mode. The latter is enough for 22 bits
+        # of FEC, as FreeDV does in 2400 and 1850 modes.
+        vocoder = 'codec2'
+        mode = pydv.codec2.MODE_2400 if (version & 0x02 == 0x02) else pydv.codec2.MODE_3200
+        fec = True if (version & 0x04 == 0x04) else False # Not implemented
+        logger.info('stream encoded with Codec 2 vocoder (mode %s, fec: %s)',
+                    '2400' if mode == pydv.codec2.MODE_2400 else '3200',
+                    'on' if fec else 'off')
+
+        if fec:
+            logger.error('FEC is not implemented')
+            sys.exit(1)
 
     wavef = wave.open(args.output,'w')
     wavef.setnchannels(1)
     wavef.setsampwidth(2)
     wavef.setframerate(8000)
 
-    raw_samples = []
-
-    state = pydv.mbelib.init_state()
-    for packet in stream:
-        if not isinstance(packet, DVFramePacket):
-            continue
-        samples = pydv.mbelib.decode_dstar(state, packet.dstar_frame.ambe)
-        data = struct.pack('<160h', *samples)
-        raw_samples.append(data)
-        wavef.writeframes(data)
-
-    wavef.close()
-
-    wavef = wave.open('codec.wav','w')
-    wavef.setnchannels(1)
-    wavef.setsampwidth(2)
-    wavef.setframerate(8000)
-
-    state = pydv.codec2.init_state(pydv.codec2.MODE_2400)
-    for sample in raw_samples:
-        data = pydv.codec2.encode(state, sample)
-        print 'encoded sample: %r (len: %d)' % (data, len(data))
-        wavef.writeframes(pydv.codec2.decode(state, data))
+    if vocoder == 'ambe':
+        state = pydv.mbelib.init_state()
+        for packet in stream:
+            if not isinstance(packet, DVFramePacket):
+                continue
+            samples = pydv.mbelib.decode_dstar(state, packet.dstar_frame.dvcodec)
+            data = struct.pack('<160h', *samples)
+            wavef.writeframes(data)
+    else:
+        state = pydv.codec2.init_state(mode)
+        for packet in stream:
+            if not isinstance(packet, DVFramePacket):
+                continue
+            dvcodec = packet.dstar_frame.dvcodec[:6] if mode == pydv.codec2.MODE_2400 else packet.dstar_frame.dvcodec[:8]
+            data = pydv.codec2.decode(state, dvcodec)
+            wavef.writeframes(data)
 
     wavef.close()
+    logger.info('output written to %s' % args.output)
 
 def main():
     dv_decoder()

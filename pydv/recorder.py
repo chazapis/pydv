@@ -14,6 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+import os
 import sys
 import argparse
 import logging
@@ -36,7 +37,7 @@ def dv_recorder():
     logging.basicConfig(format='%(asctime)s [%(levelname)7s] %(name)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         level=logging.DEBUG if args.verbose else logging.INFO)
-    logger = logging.getLogger(sys.argv[0])
+    logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
     try:
         callsign = DSTARCallsign(args.callsign)

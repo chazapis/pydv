@@ -24,7 +24,7 @@ void free_state(PyObject *capsule) {
     if (state == NULL)
         return;
 
-    printf("Destroying state %p\n", state);
+    // printf("Destroying state %p\n", state);
     codec2_destroy(state);
 }
 
@@ -38,7 +38,7 @@ static PyObject* init_state(PyObject* self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Created state %p\n", state);
+    // printf("Created state %p\n", state);
     return PyCapsule_New((void *)state, NULL, free_state);
 }
 
@@ -143,7 +143,7 @@ static PyObject *samples_per_frame(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Getting samples per frame of state %p\n", state);
+    // printf("Getting samples per frame of state %p\n", state);
     return Py_BuildValue("i", codec2_samples_per_frame(state));
 }
 
@@ -157,7 +157,7 @@ static PyObject *bits_per_frame(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Getting bits per frame of state %p\n", state);
+    // printf("Getting bits per frame of state %p\n", state);
     return Py_BuildValue("i", codec2_bits_per_frame(state));
 }
 
@@ -173,7 +173,7 @@ static PyObject *set_lpc_post_filter(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Setting lpc post filter of state %p to %d %d %f %f\n", state, enable, bass_boost, beta, gamma);
+    // printf("Setting lpc post filter of state %p to %d %d %f %f\n", state, enable, bass_boost, beta, gamma);
     codec2_set_lpc_post_filter(state, enable, bass_boost, beta, gamma);
     Py_RETURN_NONE;
 }
@@ -188,7 +188,7 @@ static PyObject *get_spare_bit_index(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Getting spare bit index of state %p\n", state);
+    // printf("Getting spare bit index of state %p\n", state);
     return Py_BuildValue("i", codec2_get_spare_bit_index(state));
 }
 
@@ -203,7 +203,7 @@ static PyObject *set_natural_or_gray(PyObject *self, PyObject *args) {
     if (state == NULL)
         return NULL;
 
-    printf("Setting natural or gray of state %p to %d\n", state, gray);
+    // printf("Setting natural or gray of state %p to %d\n", state, gray);
     codec2_set_natural_or_gray(state, gray);
     Py_RETURN_NONE;
 }
