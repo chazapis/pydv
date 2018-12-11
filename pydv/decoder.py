@@ -28,7 +28,7 @@ from stream import DVHeaderPacket, DVFramePacket
 from dvtool import DVToolFile
 
 def dv_decoder():
-    parser = argparse.ArgumentParser(description='D-STAR decoder. Decodes recordings.')
+    parser = argparse.ArgumentParser(description='D-STAR decoder. Decodes streams into samples.')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
     parser.add_argument('input', help='name of file to decode (DVTool format)')
     parser.add_argument('output', help='name of file to write (WAV format)')

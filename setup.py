@@ -19,6 +19,7 @@ setuptools.setup(
     packages=['pydv'],
     entry_points={'console_scripts': ['dv-recorder=pydv.recorder:main',
                                       'dv-player=pydv.player:main',
+                                      'dv-encoder=pydv.encoder:main',
                                       'dv-decoder=pydv.decoder:main',
                                       'dv-transcoder=pydv.transcoder:main']},
     ext_modules=[setuptools.Extension(name='pydv.mbelib',

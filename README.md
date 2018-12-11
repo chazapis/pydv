@@ -7,6 +7,7 @@ Provides Python interfaces to manage DExtra connections (the protocol used by XR
 Installs the following executables:
 * `dv-recorder`, which connects to a DExtra-compatible reflector and records traffic in .dvtool files.
 * `dv-player`, which plays back a .dvtool file to a DExtra-compatible reflector.
+* `dv-encoder`, which converts a .wav fle to a .dvtool file using the Codec 2 vocoder.
 * `dv-decoder`, which converts a .dvtool file using any vocoder to .wav.
 * `dv-transcoder`, which converts a .dvtool file using the AMBE vocoder to a .dvtool file using the Codec 2 vocoder.
 
