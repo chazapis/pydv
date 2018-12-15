@@ -18,6 +18,9 @@ def or_valueerror(condition):
     if not condition:
         raise ValueError
 
+def pad(s, count, padding='\x00'):
+    return s + ((count - len(s)) * padding)
+
 def resolve(host):
     import socket
 
@@ -44,7 +47,7 @@ class StoppableThread(threading.Thread):
         threading.Thread.__init__(self, name=name)
 
     def loop(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def run(self):
         while not self._stop_event.isSet():

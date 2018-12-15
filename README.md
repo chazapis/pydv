@@ -2,14 +2,14 @@
 
 Collection of Python code to experiment with D-STAR and the proposed [vocoder extension](#d-star-vocoder-extension) that allows the use of the open source [Codec 2](http://www.rowetel.com/codec2.html) with D-STAR.
 
-Provides Python interfaces to manage DExtra connections (the protocol used by XRF reflectors), convert from network data to D-STAR streams (header and frames) and vice versa, as well as encode and decode voice data using [mbelib](https://github.com/szechyjs/mbelib) (decode only) and [codec2](https://svn.code.sf.net/p/freetel/code/codec2/branches/).
+Provides Python interfaces to manage DExtra and DPlus connections (protocols used by reflectors), convert from network data to D-STAR streams (header and frames) and vice versa, as well as encode and decode voice data using [mbelib](https://github.com/szechyjs/mbelib) (decode only) and [codec2](https://svn.code.sf.net/p/freetel/code/codec2/branches/).
 
 Installs the following executables:
-* `dv-recorder`, which connects to a DExtra-compatible reflector and records traffic in .dvtool files.
-* `dv-player`, which plays back a .dvtool file to a DExtra-compatible reflector.
-* `dv-encoder`, which converts a .wav fle to a .dvtool file using the Codec 2 vocoder.
-* `dv-decoder`, which converts a .dvtool file using any vocoder to .wav.
-* `dv-transcoder`, which converts a .dvtool file using the AMBE vocoder to a .dvtool file using the Codec 2 vocoder.
+* `dv-recorder`, which connects to a reflector and records traffic in .dvtool files
+* `dv-player`, which plays back a .dvtool file to a reflector
+* `dv-encoder`, which converts a .wav fle to a .dvtool file using the Codec 2 vocoder
+* `dv-decoder`, which converts a .dvtool file using any vocoder to .wav
+* `dv-transcoder`, which converts a .dvtool file using the AMBE vocoder to a .dvtool file using the Codec 2 vocoder
 
 ## D-STAR vocoder extension
 

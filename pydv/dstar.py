@@ -18,7 +18,7 @@ import struct
 import string
 
 from crc import CCITTChecksum
-from utils import or_valueerror
+from utils import or_valueerror, pad
 
 class DSTARCallsign(object):
     __slots__ = ['callsign']
@@ -106,7 +106,8 @@ class DSTARHeader(object):
         my_suffix = DSTARSuffix(my_suffix)
         checksum = CCITTChecksum()
         checksum.update(header)
-        or_valueerror(crc == checksum.result())
+        # xlxd may rewrite header callsigns, without recomputing the checksum
+        # or_valueerror(crc == checksum.result())
         return cls(flag_1,
                    flag_2,
                    flag_3,
@@ -144,5 +145,4 @@ class DSTARFrame(object):
         return cls(dvcodec, dvdata)
 
     def to_data(self):
-        return self.dvcodec + ('\x00' * (9 - len(self.dvcodec))) + \
-               self.dvdata + ('\x00' * (3 - len(self.dvdata)))
+        return pad(self.dvcodec, 9) + pad(self.dvdata, 3)

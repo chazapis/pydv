@@ -19,8 +19,26 @@ import struct
 from dstar import DSTARHeader, DSTARFrame
 from utils import or_valueerror
 
+class Connection(object):
+    pass
+
+class DisconnectedError(Exception):
+    pass
+
 class Packet(object):
     pass
+
+class FixedPacket(Packet):
+    __slots__ = []
+
+    @classmethod
+    def from_data(cls, data):
+        or_valueerror(len(data) == len(cls.data))
+        or_valueerror(data == cls.data)
+        return cls()
+
+    def to_data(self):
+        return self.__class__.data
 
 class DVHeaderPacket(Packet):
     __slots__ = ['band_1', 'band_2', 'band_3', 'stream_id', 'dstar_header']

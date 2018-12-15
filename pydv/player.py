@@ -21,14 +21,16 @@ import logging
 import random
 
 from dstar import DSTARCallsign, DSTARSuffix, DSTARModule
-from dextra import DExtraConnection, DExtraDisconnectedError
-from stream import DVHeaderPacket, DVFramePacket
+from dextra import DExtraConnection
+from dplus import DPlusConnection
+from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
 from network import NetworkAddress
 from dvtool import DVToolFile
 
 def dv_player():
     parser = argparse.ArgumentParser(description='D-STAR player. Connects to reflector and plays back recordings.')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
+    parser.add_argument('-p', '--protocol', default='auto', help='network protocol (dextra, dplus, or auto)')
     parser.add_argument('callsign', help='your callsign')
     parser.add_argument('reflector', help='reflector\'s callsign')
     parser.add_argument('module', help='reflector\'s module')
@@ -45,9 +47,17 @@ def dv_player():
         callsign = DSTARCallsign(args.callsign)
         reflector_callsign = DSTARCallsign(args.reflector)
         reflector_module = DSTARModule(args.module)
-        reflector_address = NetworkAddress(args.address, DExtraConnection.DEFAULT_PORT)
+        if args.protocol == 'dextra':
+            connection_class = DExtraConnection
+        elif args.protocol == 'dplus':
+            connection_class = DPlusConnection
+        elif args.protocol == 'auto':
+            connection_class = DPlusConnection if str(reflector_callsign).startswith('REF') else DExtraConnection
+        else:
+            raise ValueError
+        reflector_address = NetworkAddress(args.address, connection_class.DEFAULT_PORT)
     except ValueError:
-        print parser.print_help()
+        parser.print_help()
         sys.exit(1)
 
     try:
@@ -66,12 +76,12 @@ def dv_player():
     stream_id = random.getrandbits(16)
 
     try:
-        with DExtraConnection(callsign, DSTARModule(' '), reflector_callsign, reflector_module, reflector_address) as conn:
+        with connection_class(callsign, DSTARModule(' '), reflector_callsign, reflector_module, reflector_address) as conn:
             try:
                 for packet in stream:
                     packet.stream_id = stream_id
                     conn.write(packet)
-            except (DExtraDisconnectedError, KeyboardInterrupt):
+            except (DisconnectedError, KeyboardInterrupt):
                 pass
     except Exception as e:
         logger.error(str(e))
