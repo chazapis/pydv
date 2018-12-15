@@ -14,22 +14,33 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+import logging
 import struct
+import time
+import Queue
 
 from dstar import DSTARHeader, DSTARFrame
-from utils import or_valueerror
+from network import UDPClientSocket
+from utils import or_valueerror, StoppableThread
 
-class Connection(object):
-    pass
+class Packet(object): # Abstract
+    __slots__ = ['data']
 
-class DisconnectedError(Exception):
-    pass
+    def __init__(self, data):
+        self.data = data
 
-class Packet(object):
-    pass
+    @classmethod
+    def from_data(cls, data):
+        return cls(data)
+
+    def to_data(self):
+        return data
 
 class FixedPacket(Packet):
     __slots__ = []
+
+    def __init__(self):
+        pass
 
     @classmethod
     def from_data(cls, data):
@@ -95,3 +106,114 @@ class DVFramePacket(Packet):
         return ('DSVT\x20\x00\x00\x00\x20' +
                 struct.pack('<BBBHB', self.band_1, self.band_2, self.band_3, self.stream_id, self.packet_id) +
                 self.dstar_frame.to_data())
+
+class DisconnectedError(Exception):
+    pass
+
+class ConnectionReceiveThread(StoppableThread):
+    def __init__(self, sock):
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        StoppableThread.__init__(self, name=self.__class__.__name__)
+        self._sleep_period = 0.01
+
+        self.sock = sock
+        self.queue = Queue.Queue()
+
+    def _process(self, data): # Abstract
+        if not data:
+            raise DisconnectedError
+        return Packet.from_data(data)
+
+    def loop(self):
+        while True: # While there is data to read from the socket
+            data = self.sock.read()
+            if not data:
+                return
+
+            try:
+                packet = self._process(data)
+                if packet:
+                    self.queue.put(packet)
+            except DisconnectedError:
+                self.queue.put(None)
+
+class Connection(object):
+    def __init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.debug('initialized with callsign %s module %s reflector callsign %s reflector_module %s reflector_address %s', callsign, module, reflector_callsign, reflector_module, reflector_address)
+
+        self.callsign = callsign
+        self.module = module
+        self.reflector_callsign = reflector_callsign
+        self.reflector_module = reflector_module
+        self.reflector_address = reflector_address
+
+        self.sock = UDPClientSocket(self.reflector_address)
+        self.receive_thread = ConnectionReceiveThread(self.sock)
+        self.disconnected = False
+
+    def _read(self, timeout=3, expected_packet_classes=None):
+        step = 0.01
+        clock = time.time()
+        limit = clock + timeout
+        while (clock < limit):
+            try:
+                packet = self.receive_thread.queue.get(True, step)
+                if not packet:
+                    self.disconnected = True
+                    raise DisconnectedError
+                if expected_packet_classes == None:
+                    return packet
+                for cls in expected_packet_classes:
+                    if isinstance(packet, cls):
+                        return packet
+            except Queue.Empty:
+                pass
+            clock = time.time()
+        return None
+
+    def _connect(self): # Abstract
+        return True
+
+    def _disconnect(self): # Abstract
+        return True
+
+    def open(self):
+        try:
+            self.sock.open()
+        except Exception as e:
+            self.logger.error('can not open UDP socket: %s', str(e))
+            return False
+        self.logger.info('connected to reflector %s at address %s', self.reflector_callsign, self.reflector_address)
+
+        self.receive_thread.start()
+        self.disconnected = False
+
+        return self._connect()
+
+    def close(self):
+        while not self.receive_thread.queue.empty():
+            self.receive_thread.queue.get()
+
+        if not self.disconnected:
+            self._disconnect()
+
+        self.receive_thread.join()
+
+        self.sock.close()
+        self.logger.info('disconnected from reflector %s at address %s', self.reflector_callsign, self.reflector_address)
+
+    def __enter__(self):
+        if not self.open():
+            raise Exception('can not open connection to %s' % (self.reflector_address,))
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    def read(self, timeout=3):
+        return self._read(timeout, [DVHeaderPacket, DVFramePacket])
+
+    def write(self, packet):
+        return self.sock.write(packet.to_data())
