@@ -26,7 +26,9 @@ I propose the use of the "Flag 3" byte of the header, to mark the vocoder type i
 
 The vocoder extension is compatible with all current D-STAR hardware (repeaters, hotspots, etc.) and software (repeater controllers, reflectors, etc.), except - of course - transceivers that assume voice data to be in AMBE format and use the corresponding chip for processing.
 
-D-STAR reflectors, like [xlxd](https://github.com/LX3JL/xlxd), can be used to transcode and bridge the two formats. Although implementations of the vocoder extension can use the same reflector connections as AMBE-only clients, it should be avoided, to save the user confusion and establish interoperability. This is under development, but depending on the reflector protocol, the connect/login packet or the listening port may have to change, to distinguish between clients supporting the extension and those that don't.
+D-STAR reflectors, like [xlxd](https://github.com/LX3JL/xlxd), can be used to transcode and bridge the two formats. Although implementations of the vocoder extension can use the same reflector connections as AMBE-only clients, it should be avoided, to save the user confusion and establish interoperability.
+
+A solution is to implement another DExtra listener on a different port (30201 instead of 30001). The new port is to be used by reflectors using the "ORF" prefix (Open ReFlector). Any client connected to an ORF reflector will receive streams encoded with Codec 2. All other D-STAR protocol handlers will still send out data encoded with AMBE. Note that the protocol/port only affects data transmitted by the reflector. The stream vocoder should be recognized by all protocol handlers, so a client can still transmit data using any vocoder on any port. The rationale behind this is that DExtra links may be used by repeaters or other reflectors, so it is not really possible to know what their clients support. So, nothing will change when linking a repeater to an XRF reflector, but will do when linking to an ORF one. This work is currently being done in an [xlxd fork](https://github.com/chazapis/xlxd).
 
 The open source vocoder, allows homebrewing transceivers using a [Rasbperry Pi](https://www.raspberrypi.org), an [MMDVM modem](https://github.com/g4klx/MMDVM) (even [one constructed with through-hole components](https://www.florian-wolters.de/blog/2016/02/25/handcrafted-mmdvm-adapter/)), and an old radio. Thus, one could use a D-STAR hotspot as a transceiver, assuming a method to attach a microphone and speaker. 
 
@@ -42,6 +44,6 @@ On Mac OS X, I used [MacPorts](https://www.macports.org) to install `cmake`, `sp
 
 ---
 
-Based on [ircDDBGateway](https://github.com/g4klx/ircDDBGateway) and [xlxd](https://github.com/LX3JL/xlxd). Tested with [xlxd](https://github.com/LX3JL/xlxd).
+Based on [ircDDBGateway](https://github.com/g4klx/ircDDBGateway) and [xlxd](https://github.com/LX3JL/xlxd). Tested with an [xlxd fork](https://github.com/chazapis/xlxd).
 
 73 de SV9OAN

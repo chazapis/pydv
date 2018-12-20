@@ -249,3 +249,6 @@ class DExtraConnection(Connection):
     def _disconnect(self, timeout=3):
         self.write(DExtraDisconnectPacket(self.callsign, self.module))
         return True if self._read(timeout, [DExtraDisconnectAckPacket]) else False
+
+class DExtraOpenConnection(DExtraConnection):
+    DEFAULT_PORT = 30201

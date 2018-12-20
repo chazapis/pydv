@@ -20,7 +20,7 @@ import argparse
 import logging
 
 from dstar import DSTARCallsign, DSTARModule
-from dextra import DExtraConnection
+from dextra import DExtraConnection, DExtraOpenConnection
 from dplus import DPlusConnection
 from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
 from network import NetworkAddress
@@ -47,10 +47,17 @@ def dv_recorder():
         reflector_module = DSTARModule(args.module)
         if args.protocol == 'dextra':
             connection_class = DExtraConnection
+        elif args.protocol == 'dextraopen':
+            connection_class = DExtraOpenConnection
         elif args.protocol == 'dplus':
             connection_class = DPlusConnection
         elif args.protocol == 'auto':
-            connection_class = DPlusConnection if str(reflector_callsign).startswith('REF') else DExtraConnection
+            if str(reflector_callsign).startswith('REF'):
+                connection_class = DPlusConnection
+            elif str(reflector_callsign).startswith('ORF')
+                connection_class = DExtraOpenConnection
+            else:
+                connection_class = DExtraConnection
         else:
             raise ValueError
         reflector_address = NetworkAddress(args.address, connection_class.DEFAULT_PORT)
