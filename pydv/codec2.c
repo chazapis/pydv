@@ -62,7 +62,7 @@ static PyObject *encode(PyObject *self, PyObject *args) {
     }
 
     int nbit = codec2_bits_per_frame(state);
-    int nbyte = nbyte = (nbit + 7) / 8;
+    int nbyte = (nbit + 7) / 8;
     unsigned char *bits = (unsigned char *)malloc(nbyte);
 
     codec2_encode(state, bits, (short *)buffer);
@@ -85,7 +85,7 @@ static PyObject *decode(PyObject *self, PyObject *args) {
         return NULL;
 
     int nbit = codec2_bits_per_frame(state);
-    int nbyte = nbyte = (nbit + 7) / 8;
+    int nbyte = (nbit + 7) / 8;
 
     if (count != nbyte) {
         fprintf(stderr, "pydv.codec2.decode: input should be %d bytes\n", nbyte);
@@ -116,7 +116,7 @@ static PyObject *decode_ber(PyObject *self, PyObject *args) {
         return NULL;
 
     int nbit = codec2_bits_per_frame(state);
-    int nbyte = nbyte = (nbit + 7) / 8;
+    int nbyte = (nbit + 7) / 8;
 
     if (count != nbyte) {
         fprintf(stderr, "pydv.codec2.decode_ber: input should be %d bytes\n", nbyte);
@@ -221,7 +221,7 @@ static PyObject *get_energy(PyObject *self, PyObject *args) {
         return NULL;
 
     int nbit = codec2_bits_per_frame(state);
-    int nbyte = nbyte = (nbit + 7) / 8;
+    int nbyte = (nbit + 7) / 8;
 
     if (count != nbyte) {
         fprintf(stderr, "pydv.codec2.get_energy: input should be %d bytes\n", nbyte);
