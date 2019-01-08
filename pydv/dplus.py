@@ -38,6 +38,7 @@ class DPlusLoginPacket(Packet):
         or_valueerror(len(data) == 28)
         login, callsign, _, serial = struct.unpack('4s8s8s8s', data[4:])
         or_valueerror(login == '\x1c\xc0\x04\x00')
+        callsign = DSTARCallsign(callsign)
         return cls(callsign, serial)
 
     def to_data(self):
