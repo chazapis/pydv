@@ -110,7 +110,7 @@ class DVFramePacket(Packet):
 class DisconnectedError(Exception):
     pass
 
-class ConnectionReceiveThread(StoppableThread):
+class StreamReceiveThread(StoppableThread):
     def __init__(self, sock):
         self.logger = logging.getLogger(self.__class__.__name__)
 
@@ -138,19 +138,16 @@ class ConnectionReceiveThread(StoppableThread):
             except DisconnectedError:
                 self.queue.put(None)
 
-class Connection(object):
-    def __init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address):
+class StreamConnection(object):
+    def __init__(self, callsign, address):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.debug('initialized with callsign %s module %s reflector callsign %s reflector_module %s reflector_address %s', callsign, module, reflector_callsign, reflector_module, reflector_address)
+        self.logger.debug('initialized with callsign %s address %s', callsign, address)
 
         self.callsign = callsign
-        self.module = module
-        self.reflector_callsign = reflector_callsign
-        self.reflector_module = reflector_module
-        self.reflector_address = reflector_address
+        self.address = address
 
-        self.sock = UDPClientSocket(self.reflector_address)
-        self.receive_thread = ConnectionReceiveThread(self.sock)
+        self.sock = UDPClientSocket(self.address)
+        self.receive_thread = StreamReceiveThread(self.sock)
         self.disconnected = False
 
     def _read(self, timeout=3, expected_packet_classes=None):
@@ -185,7 +182,7 @@ class Connection(object):
         except Exception as e:
             self.logger.error('can not open UDP socket: %s', str(e))
             return False
-        self.logger.info('connected to reflector %s at address %s', self.reflector_callsign, self.reflector_address)
+        self.logger.info('connected to %s', self.address)
 
         self.receive_thread.start()
         self.disconnected = False
@@ -202,18 +199,31 @@ class Connection(object):
         self.receive_thread.join()
 
         self.sock.close()
-        self.logger.info('disconnected from reflector %s at address %s', self.reflector_callsign, self.reflector_address)
+        self.logger.info('disconnected from %s', self.address)
 
     def __enter__(self):
         if not self.open():
-            raise Exception('can not open connection to %s' % (self.reflector_address,))
+            raise Exception('can not open connection to %s' % (self.address,))
         return self
 
     def __exit__(self, type, value, traceback):
         self.close()
 
     def read(self, timeout=3):
-        return self._read(timeout, [DVHeaderPacket, DVFramePacket])
+        return self._read(timeout)
 
     def write(self, packet):
         return self.sock.write(packet.to_data())
+
+class ReflectorConnection(StreamConnection):
+    def __init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.debug('initialized with callsign %s module %s reflector callsign %s reflector_module %s reflector_address %s', callsign, module, reflector_callsign, reflector_module, reflector_address)
+
+        StreamConnection.__init__(self, callsign, reflector_address)
+        self.module = module
+        self.reflector_callsign = reflector_callsign
+        self.reflector_module = reflector_module
+
+    def read(self, timeout=3):
+        return self._read(timeout, [DVHeaderPacket, DVFramePacket])

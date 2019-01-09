@@ -17,7 +17,7 @@
 import struct
 
 from dstar import DSTARCallsign, DSTARModule
-from stream import Packet, FixedPacket, DVHeaderPacket, DVFramePacket, DisconnectedError, ConnectionReceiveThread, Connection
+from stream import Packet, FixedPacket, DVHeaderPacket, DVFramePacket, DisconnectedError, StreamReceiveThread, ReflectorConnection
 from utils import or_valueerror
 
 class DExtraConnectPacket(Packet):
@@ -166,9 +166,9 @@ class DExtraKeepAlivePacket(Packet):
     def to_data(self):
         return str(self.src_callsign) + '\x00' # XXX Send module?
 
-class DExtraConnectionRecieveThread(ConnectionReceiveThread):
+class DExtraConnectionRecieveThread(StreamReceiveThread):
     def __init__(self, sock, callsign):
-        ConnectionReceiveThread.__init__(self, sock)
+        StreamReceiveThread.__init__(self, sock)
         self.callsign = callsign
 
     def _process(self, data):
@@ -232,11 +232,11 @@ class DExtraConnectionRecieveThread(ConnectionReceiveThread):
 
         self.logger.warning('unknown data received')
 
-class DExtraConnection(Connection):
+class DExtraConnection(ReflectorConnection):
     DEFAULT_PORT = 30001
 
     def __init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address):
-        Connection.__init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address)
+        ReflectorConnection.__init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address)
         self.receive_thread = DExtraConnectionRecieveThread(self.sock, self.callsign)
 
     def _connect(self, timeout=3):

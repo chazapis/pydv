@@ -17,7 +17,7 @@
 import struct
 
 from dstar import DSTARCallsign, DSTARModule
-from stream import Packet, FixedPacket, DVHeaderPacket, DVFramePacket, DisconnectedError, ConnectionReceiveThread, Connection
+from stream import Packet, FixedPacket, DVHeaderPacket, DVFramePacket, DisconnectedError, StreamReceiveThread, ReflectorConnection
 from utils import or_valueerror, pad
 
 class DPlusConnectPacket(FixedPacket):
@@ -108,7 +108,7 @@ class DPlusFramePacket(Packet):
                '\x55\xc8\x7a\x55\x55\x55\x55\x55\x55\x55\x55\x55\x25\x1a\xc6' # XXX Why?
         return data[:8] + '\x81' + data[9:]
 
-class DPlusConnectionRecieveThread(ConnectionReceiveThread):
+class DPlusConnectionRecieveThread(StreamReceiveThread):
     def _process(self, data):
         try:
             packet = DPlusFramePacket.from_data(data)
@@ -178,11 +178,11 @@ class DPlusConnectionRecieveThread(ConnectionReceiveThread):
 
         self.logger.warning('unknown data received')
 
-class DPlusConnection(Connection):
+class DPlusConnection(ReflectorConnection):
     DEFAULT_PORT = 20001
 
     def __init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address):
-        Connection.__init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address)
+        ReflectorConnection.__init__(self, callsign, module, reflector_callsign, reflector_module, reflector_address)
         self.receive_thread = DPlusConnectionRecieveThread(self.sock)
 
     def _connect(self, timeout=3):
