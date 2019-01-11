@@ -139,11 +139,10 @@ class StreamReceiveThread(StoppableThread):
                 self.queue.put(None)
 
 class StreamConnection(object):
-    def __init__(self, callsign, address):
+    def __init__(self, address):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.debug('initialized with callsign %s address %s', callsign, address)
+        self.logger.debug('initialized with address %s', address)
 
-        self.callsign = callsign
         self.address = address
 
         self.sock = UDPClientSocket(self.address)
@@ -170,10 +169,10 @@ class StreamConnection(object):
             clock = time.time()
         return None
 
-    def _connect(self): # Abstract
+    def _connect(self):
         return True
 
-    def _disconnect(self): # Abstract
+    def _disconnect(self):
         return True
 
     def open(self):
@@ -221,6 +220,7 @@ class ReflectorConnection(StreamConnection):
         self.logger.debug('initialized with callsign %s module %s reflector callsign %s reflector_module %s reflector_address %s', callsign, module, reflector_callsign, reflector_module, reflector_address)
 
         StreamConnection.__init__(self, callsign, reflector_address)
+        self.callsign = callsign
         self.module = module
         self.reflector_callsign = reflector_callsign
         self.reflector_module = reflector_module

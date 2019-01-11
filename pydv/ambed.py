@@ -18,6 +18,7 @@ import struct
 
 from dstar import DSTARCallsign
 from stream import Packet, FixedPacket, StreamReceiveThread, StreamConnection
+from network import NetworkAddress
 from utils import or_valueerror
 
 class AMBEdOpenStreamPacket(Packet):
@@ -104,6 +105,79 @@ class AMBEdPingPacket(Packet):
 class AMBEdPongPacket(FixedPacket):
     data = 'AMBEDPONG'
 
+class AMBEdFrameInPacket(Packet):
+    __slots__ = ['packet_id', 'codec', 'data']
+
+    def __init__(self, packet_id, codec, data):
+        self.packet_id = packet_id
+        self.codec = codec
+        self.data = data
+
+    @classmethod
+    def from_data(cls, data):
+        or_valueerror(len(data) == 11)
+        codec, packet_id, data = struct.unpack('BB9s', data)
+        return cls(packet_id, codec, data)
+
+    def to_data(self):
+        return struct.pack('BB9s' self.codec,
+                                  self.packet_id,
+                                  self.data)
+
+class AMBEdFrameOutPacket(Packet):
+    __slots__ = ['packet_id', 'codec1', 'codec2', 'data1', 'data2']
+
+    def __init__(self, packet_id, codec1, codec2, data1, data2):
+        self.packet_id = packet_id
+        self.codec1 = codec1
+        self.codec2 = codec2
+        self.data1 = data1
+        self.data2 = data2
+
+    @classmethod
+    def from_data(cls, data):
+        or_valueerror(len(data) == 20)
+        codec1, codec2, packet_id, data1, data2 = struct.unpack('BBB9s9s', data)
+        return cls(packet_id, codec1, codec2, data1, data2)
+
+    def to_data(self):
+        return struct.pack('BBB9s9s' self.codec1,
+                                     self.codec2,
+                                     self.packet_id,
+                                     self.data1,
+                                     self.data2)
+
+class AMBEdStreamRecieveThread(StreamReceiveThread):
+    def _process(self, data):
+        try:
+            packet = AMBEdFrameOutPacket.from_data(data)
+        except ValueError:
+            pass
+        else:
+            self.logger.debug('received frame out packet')
+            return packet
+
+        self.logger.warning('unknown data received')
+
+class AMBEdStream(StreamConnection):
+    def __init__(self, connection, stream_id, codec_in, codecs_out, address):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.debug('initialized with connection %s stream_id %s codec_in %s codecs_out %s address %s', connection, stream_id, codec_in, codecs_out, address)
+
+        StreamConnection.__init__(self, address)
+        self.connection = connection
+        self.stream_id = stream_id
+        self.codec_in = codec_in
+        self.codecs_out = codecs_out
+        self.receive_thread = AMBEdStreamRecieveThread(self.sock)
+
+    def _disconnect(self, timeout=3):
+        self.connection.write(AMBEdCloseStreamPacket(self.stream_id))
+        return True
+
+    def read(self, timeout=3):
+        return self._read(timeout, [AMBEdFrameOutPacket])
+
 class AMBEdConnectionRecieveThread(StreamReceiveThread):
     def __init__(self, sock, callsign):
         StreamReceiveThread.__init__(self, sock)
@@ -140,27 +214,29 @@ class AMBEdConnectionRecieveThread(StreamReceiveThread):
         # XXX Send keepalives and notify if not connected...
         # ping_packet = AMBEdPingPacket(self.callsign)
         # self.sock.write(ping_packet.to_data())
-
         StreamReceiveThread.loop(self)
 
 class AMBEdConnection(StreamConnection):
     DEFAULT_PORT = 10100
 
-    def __init__(self, callsign, address, codec_in, codecs_out):
-        StreamConnection.__init__(self, callsign, address)
+    def __init__(self, callsign, address):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.debug('initialized with callsign %s address %s', callsign, address)
+
+        StreamConnection.__init__(self, address)
+        self.callsign = callsign
         self.receive_thread = AMBEdConnectionRecieveThread(self.sock, self.callsign)
-        self.codec_in = codec_in
-        self.codecs_out = codecs_out
 
     def _connect(self, timeout=3):
-        self.write(AMBEdOpenStreamPacket(self.callsign, self.codec_in, self.codecs_out))
-        packet = self._read(timeout, [AMBEdStreamDescriptorPacket, AMBEdBusyPacket])
-        if packet and isinstance(packet, AMBEdStreamDescriptorPacket):
-            # XXX Create stream...
+        self.write(AMBEdPingPacket(self.callsign))
+        packet = self._read(timeout, [AMBEdPongPacket])
+        if packet:
             return True
         return False
 
-    def _disconnect(self, timeout=3):
-        # XXX Get stream id...
-        # self.write(AMBEdCloseStreamPacket(self.stream.stream_id))
-        return True
+    def get_stream(self, codec_in, codecs_out):
+        self.write(AMBEdOpenStreamPacket(self.callsign, codec_in, codecs_out))
+        packet = self._read(timeout, [AMBEdStreamDescriptorPacket, AMBEdBusyPacket])
+        if packet and isinstance(packet, AMBEdStreamDescriptorPacket):
+            return AMBEdStream(packet.stream_id, NetworkAddress(self.address.host, packet.port))
+        return None
