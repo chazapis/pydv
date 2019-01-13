@@ -21,6 +21,14 @@ from stream import Packet, FixedPacket, StreamReceiveThread, StreamConnection
 from network import NetworkAddress
 from utils import or_valueerror
 
+# No Enum available in Python 2.7
+class AMBEdCodec:
+    NONE = 0
+    AMBEPLUS = 1
+    AMBE2PLUS = 2
+    CODEC2 = 4
+    ALL = 7
+
 class AMBEdOpenStreamPacket(Packet):
     __slots__ = ['callsign', 'codec_in', 'codecs_out']
 
@@ -234,9 +242,14 @@ class AMBEdConnection(StreamConnection):
             return True
         return False
 
-    def get_stream(self, codec_in, codecs_out):
+    def get_stream(self, codec_in):
+        codecs_out = AMBEdCodec.ALL ^ codec_in
         self.write(AMBEdOpenStreamPacket(self.callsign, codec_in, codecs_out))
         packet = self._read(timeout, [AMBEdStreamDescriptorPacket, AMBEdBusyPacket])
         if packet and isinstance(packet, AMBEdStreamDescriptorPacket):
-            return AMBEdStream(packet.stream_id, NetworkAddress(self.address.host, packet.port))
+            return AMBEdStream(self,
+                               packet.stream_id,
+                               codec_in,
+                               codecs_out,
+                               NetworkAddress(self.address.host, packet.port))
         return None

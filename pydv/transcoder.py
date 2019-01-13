@@ -21,17 +21,15 @@ import logging
 import wave
 import struct
 
-import pydv.mbelib
-import pydv.codec2
-
+from ambed import AMBEdCodec, AMBEdFrameInPacket, AMBEdConnection
 from stream import DVHeaderPacket, DVFramePacket
 from dvtool import DVToolFile
 
 def dv_transcoder():
-    parser = argparse.ArgumentParser(description='D-STAR transcoder. Transcodes recordings from AMBE to Codec 2.')
+    parser = argparse.ArgumentParser(description='D-STAR transcoder. Connects to an AMBEd server to transcode recordings.')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
-    parser.add_argument('-m', '--mode', default='3200', help='Codec 2 mode (2400 or 3200)')
-    parser.add_argument('-f', '--fec', default=False, action='store_true', help='enable FEC')
+    parser.add_argument('callsign', help='your callsign')
+    parser.add_argument('address', help='AMBEd\'s hostname or IP address')
     parser.add_argument('input', help='name of file to transcode (DVTool format)')
     parser.add_argument('output', help='name of file to write (DVTool format)')
     args = parser.parse_args()
@@ -41,17 +39,18 @@ def dv_transcoder():
                         level=logging.DEBUG if args.verbose else logging.INFO)
     logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
-    if args.mode not in ('2400', '3200'):
-        logger.error('mode can be either 2400 or 3200')
-        sys.exit(1)
-    if args.fec:
-        logger.error('FEC is not implemented')
+    try:
+        callsign = DSTARCallsign(args.callsign)
+        address = NetworkAddress(args.address, AMBEdConnection.DEFAULT_PORT)
+    except ValueError:
+        parser.print_help()
         sys.exit(1)
 
     try:
         with DVToolFile(args.input) as f:
             stream = f.read()
     except Exception as e:
+        raise
         logger.error(str(e))
         sys.exit(1)
 
@@ -60,28 +59,38 @@ def dv_transcoder():
         logger.error('first packet in stream is not a header')
         sys.exit(1)
 
-    # Determine vocoder and set (SV9OAN extension)
+    # Determine vocoder (SV9OAN extension)
     version = header.dstar_header.flag_3 & 0xff
-    if version & 0x01 == 0x01:
-        logger.info('stream already encoded with Codec 2')
-        sys.exit(0)
-    
-    version = 0x01
-    if args.mode == '2400':
-        version |= 0x02
-    # if args.fec:
-    #     version &= 0x04
-    header.dstar_header.flag_3 = version
+    if version == 0:
+        codec_in = AMBEdCodec.AMBEPLUS
+        codec_out = AMBEdCodec.CODEC2
+        header.dstar_header.flag_3 = 0x01
+        logger.info('stream encoded with AMBE vocoder')
+    elif version & 0x01 == 0x01:
+        if version != 0x01:
+            logger.error('only 3200 mode and no FEC supported with Codec 2')
+            sys.exit(1)
+        codec_in = AMBEdCodec.CODEC2
+        codec_out = AMBEdCodec.AMBEPLUS
+        header.dstar_header.flag_3 = 0
+        logger.info('stream encoded with Codec 2 vocoder (mode: 3200, fec: off)')
 
-    state_mbelib = pydv.mbelib.init_state()
-    mode = pydv.codec2.MODE_2400 if (args.mode == '2400') else pydv.codec2.MODE_3200
-    state_codec2 = pydv.codec2.init_state(mode)
-    for packet in stream:
-        if not isinstance(packet, DVFramePacket):
-            continue
-        samples = pydv.mbelib.decode_dstar(state_mbelib, packet.dstar_frame.dvcodec)
-        data = struct.pack('<160h', *samples)
-        packet.dstar_frame.dvcodec = pydv.codec2.encode(state_codec2, data)
+    try:
+        with AMBEdConnection(callsign, address) as conn:
+            try:
+                with conn.get_stream(codec_in) as transcoder:
+                    for packet in stream:
+                        if not isinstance(packet, DVFramePacket):
+                            continue
+                        frame_in = AMBEdFrameInPacket(packet.packet_id, codec_in, packet.dstar_frame.dvcodec)
+                        transcoder.write(frame)
+                        frame_out = transcoder.read()
+                        packet.dstar_frame.dvcodec = frame_out.data1 if frame_out.codec1 == codec_out else frame_out.data2
+            except (DisconnectedError, KeyboardInterrupt):
+                pass
+    except Exception as e:
+        logger.error(str(e))
+        sys.exit(1)
 
     with DVToolFile(args.output) as f:
         f.write(stream)
