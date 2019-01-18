@@ -56,7 +56,7 @@ def dv_player():
         elif args.protocol == 'auto':
             if str(reflector_callsign).startswith('REF'):
                 connection_class = DPlusConnection
-            elif str(reflector_callsign).startswith('ORF')
+            elif str(reflector_callsign).startswith('ORF'):
                 connection_class = DExtraOpenConnection
             else:
                 connection_class = DExtraConnection
