@@ -33,7 +33,7 @@ class DSTARCallsign(object):
         self.callsign = callsign.upper()
 
     def __str__(self):
-        return '{: <8}'.format(self.callsign)
+        return self.callsign.ljust(8)
 
 class DSTARSuffix(object):
     __slots__ = ['suffix']
@@ -45,7 +45,7 @@ class DSTARSuffix(object):
         self.suffix = suffix.upper()
 
     def __str__(self):
-        return '{: <4}'.format(self.suffix)
+        return self.suffix.ljust(4)
 
 class DSTARModule(object):
     __slots__ = ['module']
