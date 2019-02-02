@@ -20,13 +20,14 @@ import argparse
 import logging
 import random
 
+from time import sleep
+
 from dstar import DSTARCallsign, DSTARSuffix, DSTARModule
 from dextra import DExtraConnection, DExtraOpenConnection
 from dplus import DPlusConnection
 from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
 from network import NetworkAddress
 from dvtool import DVToolFile
-from time import sleep
 
 def dv_player():
     parser = argparse.ArgumentParser(description='D-STAR player. Connects to reflector and plays back recordings.')

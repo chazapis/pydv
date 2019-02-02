@@ -21,6 +21,8 @@ import logging
 import wave
 import struct
 
+from time import sleep
+
 from dstar import DSTARCallsign
 from ambed import AMBEdCodec, AMBEdFrameInPacket, AMBEdFrameOutPacket, AMBEdConnection
 from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
@@ -81,30 +83,31 @@ def dv_transcoder():
         with AMBEdConnection(callsign, address) as conn:
             try:
                 with conn.get_stream(codec_in) as transcoder:
+                    # Send it all, as AMBEd requires several packets available
+                    # before starting to send to the hardware devices.
+                    # Replies will be buffered in the stream's incoming queue anyway.
                     for packet in stream:
                         if not isinstance(packet, DVFramePacket):
                             continue
                         frame_in = AMBEdFrameInPacket(packet.packet_id, codec_in, packet.dstar_frame.dvcodec)
                         transcoder.write(frame_in)
-                        # frame_out = transcoder.read()
-                        # if not isinstance(frame_out, AMBEdFrameOutPacket):
-                        #     raise ValueError('no frame received')
-                        # packet.dstar_frame.dvcodec = frame_out.data1 if frame_out.codec1 == codec_out else frame_out.data2
-                        from time import sleep
-                        sleep(0.5)
+                        sleep(0.02)
+
                     for packet in stream:
+                        if not isinstance(packet, DVFramePacket):
+                            continue
                         frame_out = transcoder.read()
                         if not isinstance(frame_out, AMBEdFrameOutPacket):
-                            raise ValueError('no frame received')
+                            raise ValueError('not enough transcoded frames')
                         packet.dstar_frame.dvcodec = frame_out.data1 if frame_out.codec1 == codec_out else frame_out.data2
             except (DisconnectedError, KeyboardInterrupt):
                 pass
+            else:
+                with DVToolFile(args.output) as f:
+                    f.write(stream)
     except Exception as e:
         logger.error(str(e))
         sys.exit(1)
-
-    with DVToolFile(args.output) as f:
-        f.write(stream)
 
 def main():
     dv_transcoder()

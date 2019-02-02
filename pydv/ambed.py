@@ -145,7 +145,7 @@ class AMBEdFrameOutPacket(Packet):
 
     @classmethod
     def from_data(cls, data):
-        or_valueerror(len(data) == 20)
+        or_valueerror(len(data) == 21)
         codec1, codec2, packet_id, data1, data2 = struct.unpack('BBB9s9s', data)
         return cls(packet_id, codec1, codec2, data1, data2)
 
