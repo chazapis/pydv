@@ -21,8 +21,10 @@ import logging
 import wave
 import struct
 
-from ambed import AMBEdCodec, AMBEdFrameInPacket, AMBEdConnection
-from stream import DVHeaderPacket, DVFramePacket
+from dstar import DSTARCallsign
+from ambed import AMBEdCodec, AMBEdFrameInPacket, AMBEdFrameOutPacket, AMBEdConnection
+from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
+from network import NetworkAddress
 from dvtool import DVToolFile
 
 def dv_transcoder():
@@ -83,8 +85,17 @@ def dv_transcoder():
                         if not isinstance(packet, DVFramePacket):
                             continue
                         frame_in = AMBEdFrameInPacket(packet.packet_id, codec_in, packet.dstar_frame.dvcodec)
-                        transcoder.write(frame)
+                        transcoder.write(frame_in)
+                        # frame_out = transcoder.read()
+                        # if not isinstance(frame_out, AMBEdFrameOutPacket):
+                        #     raise ValueError('no frame received')
+                        # packet.dstar_frame.dvcodec = frame_out.data1 if frame_out.codec1 == codec_out else frame_out.data2
+                        from time import sleep
+                        sleep(0.5)
+                    for packet in stream:
                         frame_out = transcoder.read()
+                        if not isinstance(frame_out, AMBEdFrameOutPacket):
+                            raise ValueError('no frame received')
                         packet.dstar_frame.dvcodec = frame_out.data1 if frame_out.codec1 == codec_out else frame_out.data2
             except (DisconnectedError, KeyboardInterrupt):
                 pass

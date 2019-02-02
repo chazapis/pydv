@@ -14,6 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+import logging
 import struct
 
 from dstar import DSTARCallsign
@@ -128,9 +129,9 @@ class AMBEdFrameInPacket(Packet):
         return cls(packet_id, codec, data)
 
     def to_data(self):
-        return struct.pack('BB9s' self.codec,
-                                  self.packet_id,
-                                  self.data)
+        return struct.pack('BB9s', self.codec,
+                                   self.packet_id,
+                                   self.data)
 
 class AMBEdFrameOutPacket(Packet):
     __slots__ = ['packet_id', 'codec1', 'codec2', 'data1', 'data2']
@@ -149,11 +150,11 @@ class AMBEdFrameOutPacket(Packet):
         return cls(packet_id, codec1, codec2, data1, data2)
 
     def to_data(self):
-        return struct.pack('BBB9s9s' self.codec1,
-                                     self.codec2,
-                                     self.packet_id,
-                                     self.data1,
-                                     self.data2)
+        return struct.pack('BBB9s9s', self.codec1,
+                                      self.codec2,
+                                      self.packet_id,
+                                      self.data1,
+                                      self.data2)
 
 class AMBEdStreamRecieveThread(StreamReceiveThread):
     def _process(self, data):
@@ -236,13 +237,14 @@ class AMBEdConnection(StreamConnection):
         self.receive_thread = AMBEdConnectionRecieveThread(self.sock, self.callsign)
 
     def _connect(self, timeout=3):
-        self.write(AMBEdPingPacket(self.callsign))
-        packet = self._read(timeout, [AMBEdPongPacket])
-        if packet:
-            return True
-        return False
+        # self.write(AMBEdPingPacket(self.callsign))
+        # packet = self._read(timeout, [AMBEdPongPacket])
+        # if packet:
+        #     return True
+        # return False
+        return True
 
-    def get_stream(self, codec_in):
+    def get_stream(self, codec_in, timeout=3):
         codecs_out = AMBEdCodec.ALL ^ codec_in
         self.write(AMBEdOpenStreamPacket(self.callsign, codec_in, codecs_out))
         packet = self._read(timeout, [AMBEdStreamDescriptorPacket, AMBEdBusyPacket])
