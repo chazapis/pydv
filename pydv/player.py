@@ -26,6 +26,7 @@ from dplus import DPlusConnection
 from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
 from network import NetworkAddress
 from dvtool import DVToolFile
+from time import sleep
 
 def dv_player():
     parser = argparse.ArgumentParser(description='D-STAR player. Connects to reflector and plays back recordings.')
@@ -56,7 +57,7 @@ def dv_player():
         elif args.protocol == 'auto':
             if str(reflector_callsign).startswith('REF'):
                 connection_class = DPlusConnection
-            elif str(reflector_callsign).startswith('ORF')
+            elif str(reflector_callsign).startswith('ORF'):
                 connection_class = DExtraOpenConnection
             else:
                 connection_class = DExtraConnection
@@ -88,6 +89,7 @@ def dv_player():
                 for packet in stream:
                     packet.stream_id = stream_id
                     conn.write(packet)
+                    sleep(0.02)
             except (DisconnectedError, KeyboardInterrupt):
                 pass
     except Exception as e:
