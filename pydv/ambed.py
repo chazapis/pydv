@@ -219,12 +219,6 @@ class AMBEdConnectionRecieveThread(StreamReceiveThread):
 
         self.logger.warning('unknown data received')
 
-    def loop(self):
-        # XXX Send keepalives and notify if not connected...
-        # ping_packet = AMBEdPingPacket(self.callsign)
-        # self.sock.write(ping_packet.to_data())
-        StreamReceiveThread.loop(self)
-
 class AMBEdConnection(StreamConnection):
     DEFAULT_PORT = 10100
 
@@ -237,6 +231,7 @@ class AMBEdConnection(StreamConnection):
         self.receive_thread = AMBEdConnectionRecieveThread(self.sock, self.callsign)
 
     def _connect(self, timeout=3):
+        # Just do a ping to see that we actually have a connection
         # self.write(AMBEdPingPacket(self.callsign))
         # packet = self._read(timeout, [AMBEdPongPacket])
         # if packet:
