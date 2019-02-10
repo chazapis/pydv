@@ -85,7 +85,7 @@ def dv_decoder():
             logger.error('FEC is not implemented')
             sys.exit(1)
 
-    wavef = wave.open(args.output,'w')
+    wavef = wave.open(args.output, 'w')
     wavef.setnchannels(1)
     wavef.setsampwidth(2)
     wavef.setframerate(8000)

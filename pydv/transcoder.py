@@ -98,7 +98,8 @@ def dv_transcoder():
                             continue
                         frame_out = transcoder.read()
                         if not isinstance(frame_out, AMBEdFrameOutPacket):
-                            raise ValueError('not enough transcoded frames')
+                            # raise ValueError('not enough transcoded frames')
+                            break
                         packet.dstar_frame.dvcodec = frame_out.data1 if frame_out.codec1 == codec_out else frame_out.data2
             except (DisconnectedError, KeyboardInterrupt):
                 pass

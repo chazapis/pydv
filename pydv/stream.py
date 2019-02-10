@@ -219,7 +219,7 @@ class ReflectorConnection(StreamConnection):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.debug('initialized with callsign %s module %s reflector callsign %s reflector_module %s reflector_address %s', callsign, module, reflector_callsign, reflector_module, reflector_address)
 
-        StreamConnection.__init__(self, callsign, reflector_address)
+        StreamConnection.__init__(self, reflector_address)
         self.callsign = callsign
         self.module = module
         self.reflector_callsign = reflector_callsign
