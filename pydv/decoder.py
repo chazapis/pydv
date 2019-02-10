@@ -77,7 +77,7 @@ def dv_decoder():
         vocoder = 'codec2'
         mode = pydv.codec2.MODE_2400 if (version & 0x02 == 0x02) else pydv.codec2.MODE_3200
         fec = True if (version & 0x04 == 0x04) else False # Not implemented
-        logger.info('stream encoded with Codec 2 vocoder (mode %s, fec: %s)',
+        logger.info('stream encoded with Codec 2 vocoder (mode: %s, fec: %s)',
                     '2400' if mode == pydv.codec2.MODE_2400 else '3200',
                     'on' if fec else 'off')
 
@@ -85,7 +85,7 @@ def dv_decoder():
             logger.error('FEC is not implemented')
             sys.exit(1)
 
-    wavef = wave.open(args.output,'w')
+    wavef = wave.open(args.output, 'w')
     wavef.setnchannels(1)
     wavef.setsampwidth(2)
     wavef.setframerate(8000)
