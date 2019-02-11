@@ -63,8 +63,6 @@ class CCITTChecksum(object):
         return chr(~crc_0 & 0xff) + chr(~crc_1 & 0xff) 
 
 if __name__ == '__main__':
-    import struct
-
     data = '\x00\x00\x00XRF303 BXRF303 GCQCQCQ  SV9OAN      '
     c = CCITTChecksum()
     c.update(data)

@@ -34,7 +34,7 @@ class Packet(object): # Abstract
         return cls(data)
 
     def to_data(self):
-        return data
+        return self.data
 
 class FixedPacket(Packet):
     __slots__ = []

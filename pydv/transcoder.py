@@ -18,8 +18,6 @@ import os
 import sys
 import argparse
 import logging
-import wave
-import struct
 
 from time import sleep
 

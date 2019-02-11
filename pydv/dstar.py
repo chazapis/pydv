@@ -90,7 +90,7 @@ class DSTARHeader(object):
     @classmethod
     def from_data(cls, data):
         or_valueerror(len(data) == 41)
-        header, crc = data[:39], data[39:]
+        header = data[:39]
         flag_1, \
         flag_2, \
         flag_3, \
@@ -104,9 +104,10 @@ class DSTARHeader(object):
         ur_callsign = DSTARCallsign(ur_callsign)
         my_callsign = DSTARCallsign(my_callsign)
         my_suffix = DSTARSuffix(my_suffix)
-        checksum = CCITTChecksum()
-        checksum.update(header)
         # xlxd may rewrite header callsigns, without recomputing the checksum
+        # crc = data[39:]
+        # checksum = CCITTChecksum()
+        # checksum.update(header)
         # or_valueerror(crc == checksum.result())
         return cls(flag_1,
                    flag_2,

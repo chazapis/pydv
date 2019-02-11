@@ -16,8 +16,8 @@
 
 import struct
 
-from dstar import DSTARCallsign, DSTARModule
-from stream import Packet, FixedPacket, DVHeaderPacket, DVFramePacket, DisconnectedError, StreamReceiveThread, ReflectorConnection
+from dstar import DSTARCallsign
+from stream import Packet, FixedPacket, DVHeaderPacket, DVFramePacket, StreamReceiveThread, ReflectorConnection
 from utils import or_valueerror, pad
 
 class DPlusConnectPacket(FixedPacket):

@@ -25,7 +25,7 @@ from time import sleep
 from dstar import DSTARCallsign, DSTARSuffix, DSTARModule
 from dextra import DExtraConnection, DExtraOpenConnection
 from dplus import DPlusConnection
-from stream import DisconnectedError, DVHeaderPacket, DVFramePacket
+from stream import DisconnectedError
 from network import NetworkAddress
 from dvtool import DVToolFile
 
