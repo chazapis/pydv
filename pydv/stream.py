@@ -159,7 +159,7 @@ class StreamConnection(object):
                 if not packet:
                     self.disconnected = True
                     raise DisconnectedError
-                if expected_packet_classes == None:
+                if expected_packet_classes is None:
                     return packet
                 for cls in expected_packet_classes:
                     if isinstance(packet, cls):

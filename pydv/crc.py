@@ -60,7 +60,7 @@ class CCITTChecksum(object):
         crc_0 = 0xff & self.crc
         crc_1 = 0xff & (self.crc >> 8)
 
-        return chr(~crc_0 & 0xff) + chr(~crc_1 & 0xff) 
+        return chr(~crc_0 & 0xff) + chr(~crc_1 & 0xff)
 
 if __name__ == '__main__':
     data = '\x00\x00\x00XRF303 BXRF303 GCQCQCQ  SV9OAN      '

@@ -78,7 +78,7 @@ class UDPClientSocket(object):
 
         # Check if the data is for us, only check the IP address now (used to include port number too)
         if self.remote_address.host != address[0]:
-            return None;
+            return None
 
         return data
 
@@ -104,7 +104,7 @@ if __name__ == '__main__':
 
     def server():
         logger = logging.getLogger('server')
-    
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         server_address = NetworkAddress('0.0.0.0', 20000)
