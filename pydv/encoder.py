@@ -69,14 +69,14 @@ def dv_encoder():
     stream = [header]
     packet_id = 0
 
-    mode = pydv.codec2.MODE_2400 if (args.mode == '2400') else pydv.codec2.MODE_3200
-    state = pydv.codec2.init_state(mode)
+    mode = pydv.codec2.CODEC2_MODE_2400 if (args.mode == '2400') else pydv.codec2.CODEC2_MODE_3200
+    state = pydv.codec2.codec2_create(mode)
     while True:
         data = wavef.readframes(160)
         if len(data) < 160:
             break
 
-        dvcodec = pydv.codec2.encode(state, data)
+        dvcodec = pydv.codec2.codec2_encode(state, data)
         dstar_frame = DSTARFrame(dvcodec, '\x55\x2d\x16' if (packet_id % 21 == 0) else '')
         packet = DVFramePacket(0, 0, 0, 0, packet_id % 21, dstar_frame)
         stream.append(packet)

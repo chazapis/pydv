@@ -75,10 +75,10 @@ def dv_decoder():
         # 24 in the case of 2400 mode. The latter is enough for 22 bits
         # of FEC, as FreeDV does in 2400 and 1850 modes.
         vocoder = 'codec2'
-        mode = pydv.codec2.MODE_2400 if (version & 0x02 == 0x02) else pydv.codec2.MODE_3200
+        mode = pydv.codec2.CODEC2_MODE_2400 if (version & 0x02 == 0x02) else pydv.codec2.CODEC2_MODE_3200
         fec = True if (version & 0x04 == 0x04) else False # Not implemented
         logger.info('stream encoded with Codec 2 vocoder (mode: %s, fec: %s)',
-                    '2400' if mode == pydv.codec2.MODE_2400 else '3200',
+                    '2400' if mode == pydv.codec2.CODEC2_MODE_2400 else '3200',
                     'on' if fec else 'off')
 
         if fec:
@@ -99,12 +99,12 @@ def dv_decoder():
             data = struct.pack('<160h', *samples)
             wavef.writeframes(data)
     else:
-        state = pydv.codec2.init_state(mode)
+        state = pydv.codec2.codec2_create(mode)
         for packet in stream:
             if not isinstance(packet, DVFramePacket):
                 continue
-            dvcodec = packet.dstar_frame.dvcodec[:6] if mode == pydv.codec2.MODE_2400 else packet.dstar_frame.dvcodec[:8]
-            data = pydv.codec2.decode(state, dvcodec)
+            dvcodec = packet.dstar_frame.dvcodec[:6] if mode == pydv.codec2.CODEC2_MODE_2400 else packet.dstar_frame.dvcodec[:8]
+            data = pydv.codec2.codec2_decode(state, dvcodec)
             wavef.writeframes(data)
 
     wavef.close()
