@@ -29,7 +29,7 @@ from dvtool import DVToolFile
 def dv_encoder():
     parser = argparse.ArgumentParser(description='D-STAR encoder. Encodes samples into streams.')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
-    parser.add_argument('-t', '--type', default=0, type=int, help='vocoder type (0: Codec 2 mode 3200, 1: Codec 2 mode 2400 with FEC)')
+    parser.add_argument('-m', '--mode', default=0, type=int, help='vocoder type (0: Codec 2 mode 3200, 1: Codec 2 mode 2400 with FEC)')
     parser.add_argument('input', help='name of file to encode (WAV format)')
     parser.add_argument('output', help='name of file to write (DVTool format)')
     args = parser.parse_args()
@@ -39,9 +39,10 @@ def dv_encoder():
                         level=logging.DEBUG if args.verbose else logging.INFO)
     logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
-    if args.type not in (0, 1):
-        logger.error('type can be either 0 or 1')
+    if args.mode not in (0, 1):
+        logger.error('mode can be either 0 or 1')
         sys.exit(1)
+    mode = args.mode
 
     wavef = wave.open(args.input, 'r')
     if (wavef.getnchannels() != 1 or wavef.getsampwidth() != 2 or wavef.getframerate() != 8000):
@@ -49,7 +50,7 @@ def dv_encoder():
         sys.exit(1)
 
     version = 0x01
-    if args.type == 1:
+    if mode == 1:
         version |= 0x02
     dstar_header = DSTARHeader(0,
                                0,
@@ -62,10 +63,13 @@ def dv_encoder():
     header = DVHeaderPacket(0, 0, 0, 0, dstar_header)
     stream = [header]
     packet_id = 0
+    logger.info('encoding stream with Codec 2 vocoder (mode: %s, fec: %s)',
+                '2400' if mode == 1 else '3200',
+                'on' if mode == 1 else 'off')
 
-    mode = pydv.codec2.CODEC2_MODE_2400 if (args.type == 1) else pydv.codec2.CODEC2_MODE_3200
-    state = pydv.codec2.codec2_create(mode)
-    if args.type == 1:
+    codec2_mode = pydv.codec2.CODEC2_MODE_2400 if mode == 1 else pydv.codec2.CODEC2_MODE_3200
+    state = pydv.codec2.codec2_create(codec2_mode)
+    if mode == 1:
         pydv.codec2.golay23_init()
     while True:
         data = wavef.readframes(160)
@@ -73,16 +77,16 @@ def dv_encoder():
             break
 
         dvcodec = pydv.codec2.codec2_encode(state, data)
-        if args.type == 1:
-            fec_input = (ord(dvcodec[0]) << 4) | ((ord(dvcodec[1]) >> 4) & 0xF)
-            fec_data = pydv.codec2.golay23_encode(fec_input)
-            dvcodec += chr((fec_data >> 3) & 0xFF)
-            partial_byte = (fec_data & 0x7) << 5
+        if mode == 1:
+            bits = (ord(dvcodec[0]) << 4) | ((ord(dvcodec[1]) >> 4) & 0xF)
+            codeword = pydv.codec2.golay23_encode(bits)
+            dvcodec += chr((codeword >> 3) & 0xFF)
+            partial_byte = (codeword & 0x7) << 5
 
-            fec_input = ((ord(dvcodec[1]) & 0xF) << 8) | ord(dvcodec[2])
-            fec_data = pydv.codec2.golay23_encode(fec_input)
-            dvcodec += chr(partial_byte | ((fec_data >> 6) & 0x1F))
-            dvcodec += chr((fec_data & 0x3F) << 2)
+            bits = ((ord(dvcodec[1]) & 0xF) << 8) | ord(dvcodec[2])
+            codeword = pydv.codec2.golay23_encode(bits)
+            dvcodec += chr(partial_byte | ((codeword >> 6) & 0x1F))
+            dvcodec += chr((codeword & 0x3F) << 2)
 
         dstar_frame = DSTARFrame(dvcodec, '\x55\x2d\x16' if (packet_id % 21 == 0) else '')
         packet = DVFramePacket(0, 0, 0, 0, packet_id % 21, dstar_frame)
