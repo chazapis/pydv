@@ -18,11 +18,12 @@ I propose the use of the "Flag 3" byte of the header, to mark the vocoder type i
 | Bit | Meaning | Function |
 | --- | ------- | -------- |
 | `0000000x` | Vocoder | `0`: AMBE (backwards compatible)<br/>`1`: Codec 2 |
-| `000000x1` | Codec 2 mode | `0`: 3200 (160 samples/20 ms into 64 bits)<br/>`1`: 2400 (160 samples/20 ms into 48 bits) |
-| `00000x?1` | Enable FEC | `0`: No<br/>`1`: Yes |
-| `00001000` to `11111111` | Undefined | Use for future expansion |
+| `000000x1` | Mode | `0`: Codec 2 3200 (160 samples/20 ms into 64 bits)<br/>`1`: Codec 2 2400 (160 samples/20 ms into 48 bits) plus FEC (22 bits) |
+| `00000100` to `11111111` | Undefined | Use for future expansion |
 
-**FEC is currently not implemented.** _The space available in the frame for voice data is 72 bits, so that leaves us with 8 bits in the case of 3200 mode and 24 in the case of 2400 mode. The latter is enough for 22 bits of FEC, as [FreeDV](https://freedv.org) does in 2400 and 1850 modes._
+_The total space available in the frame for voice data is 72 bits. With Codec 2 3200, there is not much space left for FEC, so this option should only be used for communications over the Internet. On the other hand, using Codec 2 2400, allows us to protect the first 24 bits of the voice data with two applications of the (23, 12) Golay code._
+
+_Note: An early version of the extension used one more bit to control the presence of FEC. It was later decided to always include FEC when there is available space in the frame._
 
 The vocoder extension is compatible with all current D-STAR hardware (repeaters, hotspots, etc.) and software (repeater controllers, reflectors, etc.), except - of course - transceivers that assume voice data to be in AMBE format and use the corresponding chip for processing.
 
@@ -30,7 +31,7 @@ D-STAR reflectors, like [xlxd](https://github.com/LX3JL/xlxd), can be used to tr
 
 The solution implemented in the `vocoder-extension` branch of my [xlxd fork](https://github.com/chazapis/xlxd) uses another DExtra listener on a different port (30201 instead of 30001). The new port is to be used by reflectors using the "ORF" prefix (Open ReFlector). Any client connected to an ORF reflector will receive streams encoded with Codec 2. All other D-STAR protocol handlers will still send out data encoded with AMBE. Note that the protocol/port only affects data transmitted by the reflector. The stream vocoder is recognized by all protocol handlers, so a client can still transmit data using any vocoder on any port. The rationale behind this is that DExtra links may be used by repeaters or other reflectors, so it is not really possible to know what their clients support. So, nothing will change when linking a repeater to an XRF reflector, but will do when linking to an ORF one.
 
-The open source vocoder, allows homebrewing transceivers using a [Rasbperry Pi](https://www.raspberrypi.org), an [MMDVM modem](https://github.com/g4klx/MMDVM) (even [one constructed with through-hole components](https://www.florian-wolters.de/blog/2016/02/25/handcrafted-mmdvm-adapter/)), and an old radio. Thus, one could use a D-STAR hotspot as a transceiver, assuming a method to attach a microphone and speaker. 
+The open source vocoder, allows homebrewing transceivers using a [Rasbperry Pi](https://www.raspberrypi.org), an [MMDVM modem](https://github.com/g4klx/MMDVM) (even [one constructed with through-hole components](https://www.florian-wolters.de/blog/2016/02/25/handcrafted-mmdvm-adapter/)), and an old radio. Thus, one could use a D-STAR hotspot as a transceiver, assuming a method to attach a microphone and speaker. It also allows using software clients to communicate through reflectors without the need of any AMBE hardware.
 
 All included utilities implement the vocoder extension. Use the `-p dextraopen` flag, or substitude the reflector's callsign prefix with "ORF", to make `dv-player` and `dv-recorder` use the "open" DExtra port.
 
