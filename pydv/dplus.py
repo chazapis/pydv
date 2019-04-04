@@ -202,7 +202,7 @@ class DPlusConnection(ReflectorConnection):
         return True if self._read(timeout, [DPlusDisconnectPacket]) else False
 
     def read(self, timeout=3):
-        packet = self._read(timeout, [DPlusHeaderPacket, DPlusFramePacket]) 
+        packet = self._read(timeout, [DPlusHeaderPacket, DPlusFramePacket])
         if not packet:
             return None
         if isinstance(packet, DPlusHeaderPacket):
