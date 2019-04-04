@@ -29,7 +29,7 @@ from dvtool import DVToolFile
 def dv_encoder():
     parser = argparse.ArgumentParser(description='D-STAR encoder. Encodes samples into streams.')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='enable debug output')
-    parser.add_argument('-m', '--mode', default=0, type=int, help='vocoder type (0: Codec 2 mode 3200, 1: Codec 2 mode 2400 with FEC)')
+    parser.add_argument('-m', '--mode', default='3200', help='vocoder mode (3200: Codec 2 mode 3200, 2400: Codec 2 mode 2400 with FEC)')
     parser.add_argument('input', help='name of file to encode (WAV format)')
     parser.add_argument('output', help='name of file to write (DVTool format)')
     args = parser.parse_args()
@@ -39,10 +39,10 @@ def dv_encoder():
                         level=logging.DEBUG if args.verbose else logging.INFO)
     logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
-    if args.mode not in (0, 1):
-        logger.error('mode can be either 0 or 1')
+    if args.mode not in ('3200', '2400'):
+        logger.error('mode can be either 3200 or 2400')
         sys.exit(1)
-    mode = args.mode
+    mode = 0 if args.mode == '3200' else 1
 
     wavef = wave.open(args.input, 'r')
     if (wavef.getnchannels() != 1 or wavef.getsampwidth() != 2 or wavef.getframerate() != 8000):
