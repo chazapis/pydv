@@ -27,8 +27,8 @@ class AMBEdCodec:
     NONE = 0
     AMBEPLUS = 1
     AMBE2PLUS = 2
-    CODEC2 = 4
-    ALL = 7
+    CODEC2_3200 = 4
+    CODEC2_2400 = 8
 
 class AMBEdOpenStreamPacket(Packet):
     __slots__ = ['callsign', 'codec_in', 'codecs_out']
@@ -230,6 +230,11 @@ class AMBEdConnection(StreamConnection):
         self.callsign = callsign
         self.receive_thread = AMBEdConnectionRecieveThread(self.sock, self.callsign)
 
+        self.codecs_out_map = {AMBEdCodec.AMBEPLUS: AMBEdCodec.AMBE2PLUS | AMBEdCodec.CODEC2_3200,
+                               AMBEdCodec.AMBE2PLUS: AMBEdCodec.AMBEPLUS | AMBEdCodec.CODEC2_3200,
+                               AMBEdCodec.CODEC2_3200: AMBEdCodec.AMBEPLUS | AMBEdCodec.AMBE2PLUS,
+                               AMBEdCodec.CODEC2_2400: AMBEdCodec.AMBEPLUS | AMBEdCodec.AMBE2PLUS}
+
     def _connect(self, timeout=3):
         # Just do a ping to see that we actually have a connection
         # self.write(AMBEdPingPacket(self.callsign))
@@ -240,7 +245,7 @@ class AMBEdConnection(StreamConnection):
         return True
 
     def get_stream(self, codec_in, timeout=3):
-        codecs_out = AMBEdCodec.ALL ^ codec_in
+        codecs_out = self.codecs_out_map[codec_in]
         self.write(AMBEdOpenStreamPacket(self.callsign, codec_in, codecs_out))
         packet = self._read(timeout, [AMBEdStreamDescriptorPacket, AMBEdBusyPacket])
         if packet and isinstance(packet, AMBEdStreamDescriptorPacket):
