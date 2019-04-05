@@ -65,17 +65,22 @@ def dv_transcoder():
     version = header.dstar_header.flag_3 & 0xff
     if version == 0:
         codec_in = AMBEdCodec.AMBEPLUS
-        codec_out = AMBEdCodec.CODEC2
+        codec_out = AMBEdCodec.CODEC2_3200
         header.dstar_header.flag_3 = 0x01
         logger.info('stream encoded with AMBE vocoder')
-    elif version & 0x01 == 0x01:
-        if version != 0x01:
-            logger.error('only 3200 mode and no FEC supported with Codec 2')
-            sys.exit(1)
-        codec_in = AMBEdCodec.CODEC2
+    elif version & 0x03 == 0x01:
+        codec_in = AMBEdCodec.CODEC2_3200
         codec_out = AMBEdCodec.AMBEPLUS
         header.dstar_header.flag_3 = 0
         logger.info('stream encoded with Codec 2 vocoder (mode: 3200, fec: off)')
+    elif version & 0x03 == 0x03:
+        codec_in = AMBEdCodec.CODEC2_2400
+        codec_out = AMBEdCodec.AMBEPLUS
+        header.dstar_header.flag_3 = 0
+        logger.info('stream encoded with Codec 2 vocoder (mode: 2400, fec: on)')
+    else:
+        logger.error('unrecognized flag in stream header')
+        sys.exit(1)
 
     try:
         with AMBEdConnection(callsign, address) as conn:

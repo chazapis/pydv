@@ -62,28 +62,18 @@ def dv_decoder():
         #   0: AMBE (backwards compatible)
         #   1: Codec 2
         #
-        # The second bit differentiates between modes, while the third
-        # enables FEC (not implemented):
-        # This results in the following combinations of bits 2 and 3:
-        #   00: 3200 mode (160 samples/20 ms into 64 bits)
-        #   01: 2400 mode (160 samples/20 ms into 48 bits)
-        #   10: 3200 mode (160 samples/20 ms into 64 bits + ? bits FEC)
-        #   11: 2400 mode (160 samples/20 ms into 48 bits + ? bits FEC)
+        # The second bit differentiates between modes:
+        #   0: Codec 2 3200 (160 samples/20 ms into 64 bits)
+        #   1: Codec 2 2400 (160 samples/20 ms into 48 bits) + FEC (22 bits)
         #
-        # The space available in the frame is 72 bits, so that leaves
-        # us with 8 bits in the case of 3200 mode (is it enough?) and
-        # 24 in the case of 2400 mode. The latter is enough for 22 bits
-        # of FEC, as FreeDV does in 2400 and 1850 modes.
+        # With Codec 2 2400, we are protecting the first 24 bits of the
+        # voice datawith two applications of the (23, 12) Golay code.
         vocoder = 'codec2'
-        mode = pydv.codec2.MODE_2400 if (version & 0x02 == 0x02) else pydv.codec2.MODE_3200
-        fec = True if (version & 0x04 == 0x04) else False # Not implemented
+        mode = 0 if (version & 0x03 == 0x01) else 1
+        codec2_mode = pydv.codec2.CODEC2_MODE_2400 if mode == 1 else pydv.codec2.CODEC2_MODE_3200
         logger.info('stream encoded with Codec 2 vocoder (mode: %s, fec: %s)',
-                    '2400' if mode == pydv.codec2.MODE_2400 else '3200',
-                    'on' if fec else 'off')
-
-        if fec:
-            logger.error('FEC is not implemented')
-            sys.exit(1)
+                    '2400' if mode == 1 else '3200',
+                    'on' if mode == 1 else 'off')
 
     wavef = wave.open(args.output, 'w')
     wavef.setnchannels(1)
@@ -99,16 +89,49 @@ def dv_decoder():
             data = struct.pack('<160h', *samples)
             wavef.writeframes(data)
     else:
-        state = pydv.codec2.init_state(mode)
+        state = pydv.codec2.codec2_create(codec2_mode)
+        bit_count = 0
+        bit_errors = 0
+        if mode == 1:
+            pydv.codec2.golay23_init()
         for packet in stream:
             if not isinstance(packet, DVFramePacket):
                 continue
-            dvcodec = packet.dstar_frame.dvcodec[:6] if mode == pydv.codec2.MODE_2400 else packet.dstar_frame.dvcodec[:8]
-            data = pydv.codec2.decode(state, dvcodec)
+
+            dvcodec = packet.dstar_frame.dvcodec
+            if mode == 1:
+                received_codeword = ((ord(dvcodec[0]) << 15) |
+                                     (((ord(dvcodec[1]) >> 4) & 0xF) << 11) |
+                                     (ord(dvcodec[6]) << 3) |
+                                     ((ord(dvcodec[7]) >> 5) & 0x7))
+                corrected_codeword = pydv.codec2.golay23_decode(received_codeword)
+                bit_count += 23
+                bit_errors += pydv.codec2.golay23_count_errors(received_codeword, corrected_codeword)
+
+                corrected_dvcodec = chr((corrected_codeword >> 15) & 0xFF)
+                partial_byte = ((corrected_codeword >> 11) & 0xF) << 4
+
+                received_codeword = (((ord(dvcodec[1]) & 0xF) << 19) |
+                                     (ord(dvcodec[2]) << 11) |
+                                     ((ord(dvcodec[7]) & 0x1F) << 6) |
+                                     ((ord(dvcodec[8]) >> 2) & 0x3F))
+                corrected_codeword = pydv.codec2.golay23_decode(received_codeword)
+                bit_count += 23
+                bit_errors += pydv.codec2.golay23_count_errors(received_codeword, corrected_codeword)
+
+                corrected_dvcodec += chr(partial_byte | ((corrected_codeword >> 19) & 0xF))
+                corrected_dvcodec += chr((corrected_codeword >> 11) & 0xFF)
+
+                dvcodec = corrected_dvcodec + dvcodec[3:]
+
+            dvcodec = dvcodec[:6] if mode == 1 else dvcodec[:8]
+            data = pydv.codec2.codec2_decode(state, dvcodec)
             wavef.writeframes(data)
+        if mode == 1:
+            logger.info('total FEC bits: %d, bit errors: %d', bit_count, bit_errors)
 
     wavef.close()
-    logger.info('output written to %s' % args.output)
+    logger.info('output written to %s', args.output)
 
 def main():
     dv_decoder()
