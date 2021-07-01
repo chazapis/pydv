@@ -19,8 +19,7 @@ import sys
 import argparse
 import logging
 import random
-
-from time import sleep
+import time
 
 from dstar import DSTARCallsign, DSTARSuffix, DSTARModule
 from dextra import DExtraConnection, DExtraOpenConnection
@@ -83,6 +82,7 @@ def dv_player():
     header.dstar_header.repeater_1_callsign = DSTARCallsign(str(reflector_callsign)[:7] + str(reflector_module))
     header.dstar_header.repeater_2_callsign = DSTARCallsign(str(reflector_callsign)[:7] + 'G')
     stream_id = random.getrandbits(16)
+    target_time = 0
 
     try:
         with connection_class(callsign, DSTARModule(' '), reflector_callsign, reflector_module, reflector_address) as conn:
@@ -90,7 +90,10 @@ def dv_player():
                 for packet in stream:
                     packet.stream_id = stream_id
                     conn.write(packet)
-                    sleep(0.02)
+                    if abs(target_time - time.time()) > 1:
+                        target_time = time.time()
+                    target_time += 0.020
+                    time.sleep(max(target_time - time.time(), 0))
             except (DisconnectedError, KeyboardInterrupt):
                 pass
     except Exception as e:
