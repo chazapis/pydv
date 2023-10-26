@@ -191,7 +191,7 @@ class DPlusConnection(ReflectorConnection):
         if not packet:
             return False
 
-        self.write(DPlusLoginPacket(self.callsign, ''))
+        self.write(DPlusLoginPacket(self.callsign, 'DV019999'))
         packet = self._read(timeout, [DPlusLoginOKPacket, DPlusLoginBusyPacket, DPlusLoginFailPacket])
         if packet and isinstance(packet, DPlusLoginOKPacket):
             return True
